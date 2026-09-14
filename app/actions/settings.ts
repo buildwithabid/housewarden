@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { CONSOLE_ACTOR, HousewardenError } from "@/lib/contracts";
-import { failure, finishForm, finishWithRedirect, runConsoleTool, str, type ActionState } from "@/lib/console/outcome";
+import { failure, finishForm, finishWithRedirect, refreshConsole, runConsoleTool, str, type ActionState } from "@/lib/console/outcome";
 import { requireConsoleSession } from "@/lib/console/session";
 import { flashUrl } from "@/lib/console/url";
 import { seedDemo } from "@/lib/seed";
@@ -23,6 +23,7 @@ export async function loadDemoData(): Promise<void> {
       console.error("[housewarden] seed failed", { name: err instanceof Error ? err.name : typeof err, message: err instanceof Error ? err.message : String(err) });
     }
   }
+  refreshConsole();
   redirect(flashUrl("/", message, ok ? "accent" : "danger"));
 }
 

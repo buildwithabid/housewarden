@@ -8,6 +8,14 @@ Housewarden runs one household — bills, chores, shopping, reminders, budget, s
 
 A home assistant is about to be handed real actions: pay this bill, unlock the door, clear the shopping list. The missing piece is not the tools; it is the safety layer around them — *show me what will change before it changes, ask me, and keep a tamper-evident record.* Housewarden is that layer, shipped as a complete product rather than a demo: self-hosted, zero-setup, open source (MIT).
 
+## Demo video
+
+**Watch:** `TODO_VIDEO_URL` (YouTube, under three minutes, English captions burned in) — the same file is in the repo as [`demo/housewarden-demo.mp4`](demo/housewarden-demo.mp4). Shot list and every caption: [`demo/script.md`](demo/script.md). It was recorded with Playwright driving the real console and a real MCP client (`demo/record.mjs`); nothing in it is mocked.
+
+| Dashboard | Pending approval | Audit chain |
+|---|---|---|
+| [![Dashboard](docs/screens/dashboard-1280.png)](docs/screens/dashboard-1280.png) | [![Pending approval card](docs/screens/pending-1280.png)](docs/screens/pending-1280.png) | [![Audit log with chain verified](docs/screens/audit-1280.png)](docs/screens/audit-1280.png) |
+
 ## Quickstart — 90 seconds, nothing but Node 20+
 
 ```bash
@@ -197,7 +205,8 @@ The console is the human half of the guard, at the same origin as the MCP endpoi
 | `npm run test` | Vitest unit and integration tests on an in-memory PGlite. |
 | `npm run typecheck` / `npm run lint` | `next typegen && tsc --noEmit` / `eslint .` |
 | `npm run e2e` | Starts a throwaway server on a free port, seeds it, and drives it with `@modelcontextprotocol/client` over Streamable HTTP: 503 without a token → initialize (2025 handshake and version negotiation) → `tools/list` = 31 with schemas → read → low-risk mutation + idempotent replay → dry run writes nothing → confirm-risk mutation → nothing written → `confirm_action` once → idempotent second confirm → reject → `verify_audit_chain` → 403 / 401 / 405 / 400. Prints a table; exit code = failures. `BASE_URL=… HOUSEWARDEN_TOKEN=… npm run e2e` targets a running server. |
-| `npm run demo:client` | Narrated terminal walkthrough of the four demo steps (used for the video). `-- --auto-approve` confirms by voice instead of waiting for the console; `-- --bonus` adds the child-unlocks-the-door beat. |
+| `npm run demo:client` | Narrated terminal walkthrough of the four demo steps. `-- --auto-approve` confirms by voice instead of waiting for the console; `-- --bonus` adds the child-unlocks-the-door beat. |
+| `node demo/record.mjs --check` | Drives the four-step storyline through the real console and a real MCP client with Playwright (26 assertions); without `--check` it records the demo video. Needs `PLAYWRIGHT_DIR` pointing at a `node_modules` that has Playwright and a running server (`HOUSEWARDEN_URL`, `HOUSEWARDEN_TOKEN`, `HOUSEWARDEN_ADMIN_SECRET`). |
 
 ## Configuration
 
@@ -245,6 +254,7 @@ lib/db/                Db interface with PGlite and pg adapters; db/migrations/*
 lib/contracts.ts       shared DTOs, schemas, tool catalogue, canonical JSON
 app/(console)/         the console (server components + server actions, Tailwind, no client data library)
 scripts/               dev, migrate, seed, demo-client
+demo/                  stage.html + record.mjs (storyline check and video recorder), script.md, housewarden-demo.mp4
 tests/                 vitest suites (core, tools, console) and tests/e2e/protocol.e2e.ts
 docs/                  SPEC, TOOLS, DESIGN, FILE_OWNERSHIP, SUBMISSION, FRICTION_LOG
 ```

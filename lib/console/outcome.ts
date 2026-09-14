@@ -6,6 +6,7 @@
  * confirmation card via ?confirm=<action_id>) or an ActionState (failure,
  * shown inline next to the form with the submitted fields echoed back).
  */
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { CONSOLE_ACTOR, type ToolName, type ToolOutcome } from "@/lib/contracts";
 import { runTool } from "@/lib/guard";
@@ -72,10 +73,21 @@ function outputActionId(output: unknown): string | null {
   return null;
 }
 
+/**
+ * The console layout (pending badge, chain pill, household name) is a shared
+ * segment that Next keeps across navigations, so every action that can change
+ * what it shows invalidates it before redirecting.
+ */
+export function refreshConsole(): void {
+  revalidatePath("/", "layout");
+}
+
 /** Runs one tool as the console after checking the session. The only way a console action writes. */
 export async function runConsoleTool(name: ToolName, input: unknown): Promise<ToolOutcome> {
   await requireConsoleSession();
-  return runTool(name, input, CONSOLE_ACTOR);
+  const outcome = await runTool(name, input, CONSOLE_ACTOR);
+  refreshConsole();
+  return outcome;
 }
 
 /**

@@ -12,14 +12,17 @@
  *   HOUSEWARDEN_URL=http://localhost:3124 HOUSEWARDEN_TOKEN=… HOUSEWARDEN_ADMIN_SECRET=… \
  *   PLAYWRIGHT_DIR=/path/to/node_modules node demo/record.mjs [--check]
  *
- *   --check   no video, no pauses; prints a pass/fail table and exits non-zero on failure
+ *   --check   no capture, no pauses; prints a pass/fail table and exits non-zero on failure
  *
- * Output (video mode): demo/raw/<timestamp>.webm (git-ignored), demo/raw/marks.json
- * (caption timings for demo/script.md) and demo/thumbnail.png. demo/housewarden-demo.mp4
- * is produced afterwards with ffmpeg (see demo/script.md).
+ * Video mode captures frames through the Chrome DevTools screencast with their
+ * exact timestamps (Playwright's own recorder drifts on idle pages) into
+ * demo/raw/frames/ (git-ignored) and writes demo/raw/frames/list.txt, an ffmpeg
+ * concat list with per-frame durations, plus demo/raw/marks.json (caption
+ * timings for demo/script.md) and demo/thumbnail.png. demo/script.md has the
+ * ffmpeg command that turns the list into demo/housewarden-demo.mp4.
  */
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
@@ -33,6 +36,7 @@ const BASE = (process.env.HOUSEWARDEN_URL ?? "http://localhost:3124").replace(/\
 const TOKEN = process.env.HOUSEWARDEN_TOKEN ?? "";
 const SECRET = process.env.HOUSEWARDEN_ADMIN_SECRET ?? "";
 const RAW_DIR = path.join(root, "demo", "raw");
+const FRAMES_DIR = path.join(RAW_DIR, "frames");
 const STAGE_URL = `${BASE}/__demo/stage`;
 
 if (!TOKEN || !SECRET) {
@@ -62,6 +66,43 @@ function mark(label) {
 }
 
 const isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+
+// ---------------------------------------------------------------------------
+// Frame capture (video mode): CDP screencast, one PNG per changed frame, exact timestamps
+// ---------------------------------------------------------------------------
+
+async function startCapture(page) {
+  rmSync(FRAMES_DIR, { recursive: true, force: true });
+  mkdirSync(FRAMES_DIR, { recursive: true });
+  const cdp = await page.context().newCDPSession(page);
+  const frames = [];
+  let n = 0;
+  cdp.on("Page.screencastFrame", (ev) => {
+    const file = path.join(FRAMES_DIR, `f${String(n).padStart(5, "0")}.png`);
+    n += 1;
+    writeFileSync(file, Buffer.from(ev.data, "base64"));
+    frames.push({ file, t: ev.metadata.timestamp });
+    cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => undefined);
+  });
+  await cdp.send("Page.startScreencast", { format: "png", maxWidth: 1280, maxHeight: 720, everyNthFrame: 1 });
+  return {
+    frames,
+    stop: async (endEpochSeconds) => {
+      await cdp.send("Page.stopScreencast").catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 300));
+      await cdp.detach().catch(() => undefined);
+      const lines = ["ffconcat version 1.0"];
+      for (let i = 0; i < frames.length; i += 1) {
+        const next = i + 1 < frames.length ? frames[i + 1].t : endEpochSeconds;
+        const d = Math.max(next - frames[i].t, 0.001);
+        lines.push(`file '${path.basename(frames[i].file)}'`, `duration ${d.toFixed(4)}`);
+      }
+      if (frames.length) lines.push(`file '${path.basename(frames[frames.length - 1].file)}'`);
+      writeFileSync(path.join(FRAMES_DIR, "list.txt"), `${lines.join("\n")}\n`);
+      return frames.length;
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // MCP client
@@ -100,6 +141,7 @@ function stage(page) {
     clear: () => call("clearTerm"),
     termTitle: (t) => call("setTermTitle", t),
     title: (tag, sub) => call("titleSlide", tag, sub),
+    blank: () => call("blankSlide"),
     built: (items, right) => call("builtSlide", items, right),
     reveal: (n) => call("revealBuilt", n),
     repo: () => call("repoSlide"),
@@ -108,11 +150,11 @@ function stage(page) {
 
 async function say(st, text) {
   await st.line("you", "You:", `"${text}"`, true);
-  await wait(500);
+  await wait(600);
 }
 async function calling(st, name, args) {
   await st.line("call", "Calling:", `${name} ${JSON.stringify(args)}`);
-  await wait(450);
+  await wait(500);
 }
 async function alexa(st, text) {
   await st.line("alexa", "Alexa:", `"${text}"`);
@@ -153,22 +195,25 @@ async function ensureDemoData(frame) {
   if (await empty.count()) {
     await empty.first().click();
     await frame.waitForURL(/flash=/);
-    check("console: Load demo data seeds the Ali family", /Loaded the/.test(await frame.locator("body").innerText()));
+    check("console: Load demo data seeds the Ali family", /Loaded the/.test(await frame.locator("main").innerText()));
   } else {
     check("console: household already present", true);
   }
-  await frame.waitForSelector("text=Ali family");
+  await frame.locator("main").getByText("Ali family").first().waitFor();
 }
 
-async function approveOnPending(frame, summaryFragment) {
+/** Navigates the iframe to /pending and returns the card for the given summary (call while the iframe is covered). */
+async function openPending(frame, summaryFragment) {
   await frame.goto(`${BASE}/pending`);
   const card = frame.locator("article.confirmation-card", { hasText: summaryFragment }).first();
   await card.waitFor({ timeout: 15_000 });
-  await wait(2600);
+  return card;
+}
+
+async function approve(frame, card) {
   await card.getByRole("button", { name: "Approve" }).click();
   await frame.waitForURL(/flash=/, { timeout: 20_000 });
-  const text = await frame.locator("body").innerText();
-  return text;
+  return frame.locator("body").innerText();
 }
 
 // ---------------------------------------------------------------------------
@@ -180,36 +225,35 @@ async function main() {
   const stageHtml = readFileSync(path.join(root, "demo", "stage.html"), "utf8");
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 },
-    deviceScaleFactor: 1,
-    colorScheme: "light",
-    ...(CHECK ? {} : { recordVideo: { dir: RAW_DIR, size: { width: 1280, height: 720 } } }),
-  });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, colorScheme: "light" });
   const page = await context.newPage();
-  const videoStart = Date.now();
   await page.route(`${STAGE_URL}*`, (route) => route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: stageHtml }));
   const st = stage(page);
 
   let client = null;
+  let capture = null;
   try {
     // --- 0:00 Title, while the console logs in and seeds behind it ---------
     await page.goto(STAGE_URL);
-    showStart = Date.now();
     await st.title("Every household action: previewed, confirmed, audited.", "A self-hosted MCP server for Alexa+ and any MCP host");
+    if (!CHECK) capture = await startCapture(page);
+    showStart = Date.now();
     await st.caption("", "A home assistant is about to be handed real actions.");
     const frame = await consoleFrame(page);
     await login(frame);
     check("console: login with HOUSEWARDEN_ADMIN_SECRET", true);
     await ensureDemoData(frame);
-    await wait(1200);
+    const nav = await frame.locator("aside").innerText();
+    check("console: sidebar refreshed after loading demo data", /Household: Ali family/.test(nav) && !/No household yet/.test(nav), nav.replace(/\s+/g, " ").slice(0, 80));
+    await wait(1500);
 
     // --- Dashboard with the thesis -----------------------------------------
     await st.mode("console");
     await st.caption("", "A home assistant is about to be handed real actions. Housewarden shows what will change, asks, and keeps a tamper-evident record.");
-    check("console: dashboard shows the seeded household", /Ali family/.test(await frame.locator("body").innerText()));
-    check("console: dashboard shows Chain intact", /Chain intact/.test(await frame.locator("body").innerText()));
-    await wait(9000);
+    const dash0 = await frame.locator("main").innerText();
+    check("console: dashboard shows the seeded household", /Ali family/.test(dash0));
+    check("console: dashboard shows the audit chain intact", /chain intact/i.test(dash0));
+    await wait(10_000);
 
     // --- The MCP client connects -------------------------------------------
     const conn = await connect();
@@ -223,7 +267,7 @@ async function main() {
     await st.termTitle(`npm run demo:client — @modelcontextprotocol/client → ${BASE}/api/mcp (Streamable HTTP, MCP ${conn.protocol})`);
     await st.caption("Live demo", "An MCP client connects over Streamable HTTP with a bearer token — the way Alexa+ talks to a self-hosted server.");
     await st.line("dim", "", `connected to ${info?.name ?? "housewarden"} ${info?.version ?? ""} · protocol ${conn.protocol} · ${tools.tools.length} tools`);
-    await wait(2600);
+    await wait(3200);
 
     // --- Step 1: summary ---------------------------------------------------
     await st.line("head", "", "Step 1 — Ask for a summary");
@@ -240,7 +284,7 @@ async function main() {
     const billRef = isRecord(overdue) && typeof overdue.name === "string" ? overdue.name : "Electricity";
     // After a recurring bill is paid its name resolves to the next occurrence, so the "is it paid" check uses the id.
     const billId = isRecord(overdue) && typeof overdue.id === "string" ? overdue.id : billRef;
-    await wait(4200);
+    await wait(6000);
 
     // --- Step 2: mark the overdue bill paid → needs_confirmation ------------
     await st.line("head", "", "Step 2 — Mark the overdue bill paid");
@@ -257,14 +301,21 @@ async function main() {
     await alexa(st, proposal.text);
     const bill = await callTool(client, "get_bill", { bill: billRef });
     check("guard: the bill is still unpaid before approval", bill.data.bill?.status !== "paid", `status=${bill.data.bill?.status}`);
-    await wait(5200);
+    await wait(8000);
 
     // --- Step 3: approve on /pending, then confirm_action replays ----------
+    const card = await openPending(frame, billRef);
+    const badge = await frame.locator("aside").innerText();
+    check("console: pending badge shows 1 waiting", /Pending\s*1/.test(badge.replace(/\n/g, " ")), badge.replace(/\s+/g, " ").slice(0, 60));
     await st.mode("split");
     await st.caption("Step 3 of 4", "A person approves on /pending. Same preview, same guard — the console has no privileged path around it.");
-    const approved = await approveOnPending(frame, billRef);
-    check("console: Approve on /pending executes the action", /Done|marked paid|paid/i.test(approved), approved.split("\n").find((l) => /Done|paid/i.test(l)) ?? "");
-    await wait(2600);
+    await wait(3800);
+    if (!CHECK) await page.screenshot({ path: path.join(root, "demo", "thumbnail.png") });
+    const approved = await approve(frame, card);
+    check("console: Approve on /pending executes the action", /Done:.*paid/i.test(approved), approved.split("\n").find((l) => /Done/.test(l)) ?? "");
+    const header = await frame.locator("aside").innerText();
+    check("console: pending badge cleared after approval", !/Pending\s*1/.test(header.replace(/\n/g, " ")), header.replace(/\s+/g, " ").slice(0, 60));
+    await wait(4200);
     await st.caption("Step 3 of 4", "The assistant's own confirm_action finds it already approved: executed once, replayed — never twice.");
     await calling(st, "confirm_action", { action_id: actionId });
     const confirmed = await callTool(client, "confirm_action", { action_id: actionId });
@@ -274,19 +325,19 @@ async function main() {
     await alexa(st, confirmed.text);
     const paid = await callTool(client, "get_bill", { bill: billId });
     check("domain: the original bill is paid after approval", paid.data.bill?.status === "paid", paid.text);
-    await wait(4200);
+    await wait(6000);
 
     // --- Step 4: audit verified ---------------------------------------------
-    await st.caption("Step 4 of 4", "The audit log: every row is hashed over the one before it. Verify chain recomputes every hash from the first row.");
     await frame.goto(`${BASE}/audit`);
     await frame.locator("main").getByText(/Chain intact · \d+ rows/).first().waitFor();
-    await wait(2200);
+    await st.caption("Step 4 of 4", "The audit log: every row is hashed over the one before it. Verify chain recomputes every hash from the first row.");
+    await wait(3200);
     await frame.getByRole("button", { name: "Verify chain" }).click();
     await frame.waitForURL(/flash=/);
-    const auditText = await frame.locator("body").innerText();
+    const auditText = await frame.locator("main").innerText();
     check("console: Verify chain reports Chain intact", /Chain intact · \d+ rows/.test(auditText), auditText.match(/Chain intact · \d+ rows[^\n]*/)?.[0] ?? "");
     check("console: audit shows proposed and executed for the action", /proposed/.test(auditText) && /executed/.test(auditText));
-    await wait(2400);
+    await wait(3600);
     await st.line("head", "", "Step 4 — The audit chain");
     await say(st, "Is the audit log intact?");
     await calling(st, "verify_audit_chain", {});
@@ -294,7 +345,7 @@ async function main() {
     check("mcp: verify_audit_chain intact", verify.data.intact === true, `${verify.data.rows} rows, head ${String(verify.data.last_hash ?? "").slice(0, 12)}`);
     await st.line("result", "Result:", `intact ${verify.data.intact} · ${verify.data.rows} rows · head ${String(verify.data.last_hash ?? "").slice(0, 12)}…`);
     await alexa(st, verify.text);
-    await wait(4200);
+    await wait(6000);
 
     // --- Second confirmation: the front-door lock ---------------------------
     await st.mode("terminal");
@@ -309,32 +360,34 @@ async function main() {
     await st.line("warn", "Result:", `needs_confirmation · risk ${lock.data.risk} · expires ${clock(lock.data.expires_at)}`);
     await previewLines(st, lock.data);
     await alexa(st, lock.text);
-    await wait(4200);
+    await wait(6000);
+    const lockCard = await openPending(frame, "Front door");
     await st.mode("split");
     await st.caption("One more", "The same card, the same Approve. Then the assistant's confirm_action completes the loop.");
-    const lockApproved = await approveOnPending(frame, "Front door");
-    check("console: Approve on /pending executes the unlock", /Done|unlock/i.test(lockApproved), lockApproved.split("\n").find((l) => /Done|unlock/i.test(l)) ?? "");
-    await wait(1800);
+    await wait(3600);
+    const lockApproved = await approve(frame, lockCard);
+    check("console: Approve on /pending executes the unlock", /Done:.*Front door/i.test(lockApproved), lockApproved.split("\n").find((l) => /Done/.test(l)) ?? "");
+    await wait(3000);
     await calling(st, "confirm_action", { action_id: lockId });
     const lockConfirmed = await callTool(client, "confirm_action", { action_id: lockId });
     check("guard: confirm_action on the unlock returns executed", lockConfirmed.data.status === "executed", `status=${lockConfirmed.data.status}`);
     await st.line("result", "Result:", `executed · idempotent_replay ${lockConfirmed.data.idempotent_replay}`);
     await alexa(st, lockConfirmed.text);
-    await wait(3600);
+    await wait(5000);
 
     // --- Closing look at the dashboard --------------------------------------
-    await st.mode("console");
-    await st.caption("", "Paid, unlocked, approved by a person, and every step in a chain that still verifies.");
+    await st.blank();
+    await st.mode("slide");
     await frame.goto(`${BASE}/`);
     await frame.locator("main").getByText(/chain intact/i).first().waitFor();
+    await st.mode("console");
+    await st.caption("", "Paid, unlocked, approved by a person, and every step in a chain that still verifies.");
     const dash = await frame.locator("main").innerText();
     check("console: dashboard shows the lock unlocked", /Unlocked/.test(dash));
     check("console: dashboard shows chain intact after everything", /chain intact/i.test(dash));
-    if (!CHECK) await page.screenshot({ path: path.join(root, "demo", "thumbnail.png") });
-    await wait(4200);
+    await wait(6000);
 
     // --- How it is built ----------------------------------------------------
-    await st.mode("slide");
     await st.built(
       [
         { title: "One validated write path", body: "Every mutating tool and every console form runs propose → preview → policy → execute or queue. There is no second path." },
@@ -352,6 +405,7 @@ async function main() {
 <span class="c">?</span> Load the demo household (Ali family)? (Y/n)
 <span class="g">✓</span> Console http://localhost:3000 · MCP /api/mcp</pre>Then <b>npm run e2e</b> proves it with a real MCP client: 23 checks, from the 2025 handshake to 403 / 401 / 405 / 400.`,
     );
+    await st.mode("slide");
     const builtCaptions = [
       "One guard on every write: propose, preview, policy, then execute — or wait for a person.",
       "A tamper-evident record: each audit row is hashed over the previous one and the whole chain is re-verified on demand.",
@@ -363,31 +417,25 @@ async function main() {
     for (let i = 0; i < builtCaptions.length; i += 1) {
       await st.reveal(i + 1);
       await st.caption("How it is built", builtCaptions[i]);
-      await wait(5600);
+      await wait(6200);
     }
 
     // --- Repo ---------------------------------------------------------------
     await st.repo();
     await st.caption("", "Open source, MIT. github.com/buildwithabid/housewarden");
-    await wait(7000);
+    await wait(8000);
     mark("end");
   } finally {
-    if (client) await client.close().catch(() => undefined);
     const showEnd = Date.now();
-    const video = page.video();
+    if (client) await client.close().catch(() => undefined);
+    if (capture) {
+      const frameCount = await capture.stop(showEnd / 1000);
+      const meta = { framesDir: FRAMES_DIR, frameCount, durationSeconds: Number(((showEnd - showStart) / 1000).toFixed(2)), marks };
+      writeFileSync(path.join(RAW_DIR, "marks.json"), JSON.stringify(meta, null, 2));
+      console.log(`captured ${frameCount} frames over ${meta.durationSeconds}s → ${FRAMES_DIR}/list.txt`);
+    }
     await context.close();
     await browser.close();
-    if (video) {
-      const src = await video.path();
-      const meta = {
-        raw: src,
-        trimStartSeconds: Number(((showStart - videoStart) / 1000).toFixed(2)),
-        durationSeconds: Number(((showEnd - showStart) / 1000).toFixed(2)),
-        marks,
-      };
-      writeFileSync(path.join(RAW_DIR, "marks.json"), JSON.stringify(meta, null, 2));
-      console.log(`raw video ${src} — trim ${meta.trimStartSeconds}s, show ${meta.durationSeconds}s`);
-    }
   }
 
   const failed = results.filter((r) => !r.ok).length;
@@ -401,4 +449,3 @@ main()
     console.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
     process.exit(1);
   });
-

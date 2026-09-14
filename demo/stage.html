@@ -167,11 +167,15 @@
     items.forEach((li, i) => li.classList.toggle("on", i < n));
   }
 
+  function blankSlide() {
+    slide.innerHTML = "";
+  }
+
   function repoSlide() {
     slide.innerHTML = `<div class="repo">${H_SVG}<div class="url">github.com/buildwithabid/housewarden</div><div class="line">MIT licensed · self-hosted · zero setup</div><div><span class="chip">Alexa+ track · MCP server</span><span class="chip">Open Source mini challenge</span></div><div class="small">Amazon Developer Hackathon 2026</div></div>`;
   }
 
-  window.hw = { setMode, caption, line, clearTerm, setTermTitle, titleSlide, builtSlide, revealBuilt, repoSlide, setCharMs: (ms) => { charMs = ms; } };
+  window.hw = { setMode, caption, line, clearTerm, setTermTitle, titleSlide, blankSlide, builtSlide, revealBuilt, repoSlide, setCharMs: (ms) => { charMs = ms; } };
 })();
 </script>
 </body>
