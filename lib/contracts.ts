@@ -515,6 +515,14 @@ export class HousewardenError extends Error {
   }
 }
 
+/**
+ * What runTool returns to both surfaces (docs/SPEC.md §1). The MCP handler
+ * turns it into a CallToolResult, the console into an ActionState.
+ */
+export type ToolOutcome =
+  | { ok: true; output: unknown; spoken: string }
+  | { ok: false; error: ToolError; spoken: string };
+
 /** JSON-RPC error codes used by the HTTP layer in front of the MCP handler. */
 export const JSONRPC_ERROR_UNAUTHORIZED = -32001;
 export const JSONRPC_ERROR_FORBIDDEN_ORIGIN = -32003;
