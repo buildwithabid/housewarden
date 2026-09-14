@@ -15,6 +15,10 @@ cd "$APP"
 [ -f .env.local ] || { echo "missing $APP/.env.local (HOUSEWARDEN_TOKEN, HOUSEWARDEN_ADMIN_SECRET, HOUSEWARDEN_ALLOWED_ORIGINS)"; exit 1; }
 npm ci --silent
 npm run build
+# Next's standalone output does not include static assets or public/ — copy them in, or every CSS/JS asset 404s.
+mkdir -p .next/standalone/.next .next/standalone/public
+rm -rf .next/standalone/.next/static && cp -r .next/static .next/standalone/.next/static
+[ -d public ] && cp -r public/. .next/standalone/public/ || true
 npm run migrate
 
 # --- 2. caddy binary (static, no root needed to download) ------------------------
