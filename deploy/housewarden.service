@@ -1,0 +1,14 @@
+[Unit]
+Description=Housewarden MCP server + console (Next.js standalone, embedded Postgres)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/abidali/housewarden
+EnvironmentFile=/home/abidali/housewarden/.env.local
+Environment=NODE_ENV=production PORT=3124 HOSTNAME=127.0.0.1 HOUSEWARDEN_DB=pglite
+ExecStart=/usr/bin/env node .next/standalone/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

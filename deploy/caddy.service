@@ -1,0 +1,13 @@
+[Unit]
+Description=Caddy HTTPS front for Housewarden (:443 -> 127.0.0.1:3124)
+After=network-online.target housewarden.service
+
+[Service]
+ExecStart=/home/abidali/.local/bin/caddy run --config /home/abidali/housewarden/deploy/Caddyfile --adapter caddyfile
+ExecReload=/home/abidali/.local/bin/caddy reload --config /home/abidali/housewarden/deploy/Caddyfile --adapter caddyfile
+Environment=XDG_DATA_HOME=/home/abidali/.local/share XDG_CONFIG_HOME=/home/abidali/.config
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

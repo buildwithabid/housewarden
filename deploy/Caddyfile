@@ -1,0 +1,14 @@
+169-58-213-182.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3124 {
+		flush_interval -1
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+	log {
+		output file /home/abidali/housewarden/.data/caddy-access.log
+	}
+}
