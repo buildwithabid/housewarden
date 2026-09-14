@@ -1,26 +1,339 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Hearth — the Housewarden console identity (docs/DESIGN.md).
+ * Warm paper ground, ink text, one green accent that means "safe / verified",
+ * amber for "needs you", red for "stop". Tokens are CSS custom properties that
+ * switch on prefers-color-scheme and on an explicit data-theme attribute.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  color-scheme: light;
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #efece4;
+  --border: #dcd8ce;
+  --ink: #1b1a17;
+  --ink-2: #57544c;
+  --ink-3: #8a867b;
+  --accent: #1e6b4f;
+  --accent-ink: #ffffff;
+  --accent-soft: #ddefe6;
+  --warn: #a15a00;
+  --warn-soft: #fbebd3;
+  --danger: #a32d2d;
+  --danger-soft: #f7dede;
+  --info: #2c5c9a;
+  --info-soft: #dce7f6;
+  --focus: #1e6b4f;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14130f;
+    --surface: #1e1c18;
+    --surface-2: #26241f;
+    --border: #36332c;
+    --ink: #ece9e1;
+    --ink-2: #b6b2a7;
+    --ink-3: #807c72;
+    --accent: #5cc49a;
+    --accent-ink: #0f1f19;
+    --accent-soft: #1c3a2e;
+    --warn: #e9a24c;
+    --warn-soft: #3b2a12;
+    --danger: #f08585;
+    --danger-soft: #3f1d1d;
+    --info: #7faae8;
+    --info-soft: #1b2c45;
+    --focus: #5cc49a;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14130f;
+  --surface: #1e1c18;
+  --surface-2: #26241f;
+  --border: #36332c;
+  --ink: #ece9e1;
+  --ink-2: #b6b2a7;
+  --ink-3: #807c72;
+  --accent: #5cc49a;
+  --accent-ink: #0f1f19;
+  --accent-soft: #1c3a2e;
+  --warn: #e9a24c;
+  --warn-soft: #3b2a12;
+  --danger: #f08585;
+  --danger-soft: #3f1d1d;
+  --info: #7faae8;
+  --info-soft: #1b2c45;
+  --focus: #5cc49a;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+/* Only Hearth colours, fonts, radii and the one card shadow exist as utilities. */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-focus: var(--focus);
+
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-card: var(--shadow-card);
+}
+
+@layer base {
+  html {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body {
+    min-height: 100%;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* The focus ring is always visible and never removed (DESIGN.md §6). */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary {
+    transition-property: color, background-color, border-color;
+    transition-duration: 150ms;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ink-3);
+  }
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+@layer components {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tile-value {
+    letter-spacing: -0.01em;
+  }
+
+  /* The flash notice fades in over 200 ms; the only motion besides colour. */
+  .flash {
+    animation: flash-in 200ms ease-out;
+  }
+
+  @keyframes flash-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Phone navigation sheet: a plain <details>; the page stops scrolling behind it. */
+  body:has(details.nav-menu[open]) {
+    overflow: hidden;
+  }
+
+  details.nav-menu[open] > summary .when-closed,
+  details.nav-menu:not([open]) > summary .when-open {
+    display: none;
+  }
+
+  details.row-details[open] > summary .when-closed,
+  details.row-details:not([open]) > summary .when-open {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Form controls and the two card states share these classes so every page looks the same. */
+@layer components {
+  .input {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 0.5rem 0.75rem;
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+
+  .input:disabled {
+    color: var(--ink-3);
+    background: var(--surface-2);
+  }
+
+  select.input {
+    appearance: none;
+    padding-right: 2rem;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+      linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+    background-position:
+      calc(100% - 1.1rem) 1.25rem,
+      calc(100% - 0.8rem) 1.25rem;
+    background-size:
+      0.3rem 0.3rem,
+      0.3rem 0.3rem;
+    background-repeat: no-repeat;
+  }
+
+  input[type="checkbox"].check {
+    width: 1.25rem;
+    height: 1.25rem;
+    accent-color: var(--accent);
+  }
+
+  input[type="range"].range {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  /* The confirmation card sits above the page: the one permitted shadow. */
+  .confirmation-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  /* When the countdown reaches zero the card greys out and its buttons go. */
+  .confirmation-card:has([data-expired="true"]) {
+    opacity: 0.6;
+  }
+
+  .confirmation-card:has([data-expired="true"]) .card-actions {
+    display: none;
+  }
+
+  /* Diff lines: three columns from md, entity folded into the label on phones. */
+  .diff-line {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.125rem 0.75rem;
+  }
+
+  @media (min-width: 48rem) {
+    .diff-line {
+      grid-template-columns: 6rem 11rem minmax(0, 1fr);
+      align-items: baseline;
+    }
+  }
+
+  /* Plain horizontal bars for the budget page; no chart library. */
+  .bar {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+
+  .bar-track {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+}
+
+/* Audit table: the details row under a table row shows only while its toggle is open (no JavaScript). */
+@layer components {
+  tbody.audit-group > tr.audit-expand {
+    display: none;
+  }
+
+  tbody.audit-group:has(details.audit-toggle[open]) > tr.audit-expand {
+    display: table-row;
+  }
 }
