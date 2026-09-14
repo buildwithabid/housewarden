@@ -1,6 +1,6 @@
 # Friction log
 
-Real friction met while building Housewarden on **mcp-handler 2.1.1**, **@modelcontextprotocol/server 2.0.0**, **@modelcontextprotocol/client 2.0.0**, **@electric-sql/pglite 0.5.8** and **Next.js 16.3.5** (Node 22). Each entry follows the hackathon's required shape: the task attempted, the steps taken, what was expected versus what happened, a severity rating, the workaround used, and an actionable suggestion. Entries are added by the person who hit the problem, with the date; nothing here is hypothetical.
+Real friction met while building Housewarden on **mcp-handler 2.1.1**, **@modelcontextprotocol/server 2.0.0**, **@modelcontextprotocol/client 2.0.0**, **@electric-sql/pglite 0.5.8** and **Next.js 16.3.5** (Node 22). Each entry follows the hackathon's required shape: the task attempted, the steps taken, what was expected versus what happened, a severity rating, the workaround used, and an actionable suggestion. Entries are added by the person who hit the problem, with the date; nothing here is hypothetical. F5 and F6 were reported by the build agents during integration and written up by the integrator from their notes and measurements.
 
 Severity scale: **Blocker** (no way forward), **High** (lost hours or forced a design change), **Medium** (lost real time, workaround exists), **Low** (annoyance).
 
@@ -53,6 +53,30 @@ Severity scale: **Blocker** (no way forward), **High** (lost hours or forced a d
 - **Severity:** Low.
 - **Workaround:** use the web-standard `handler.fetch` through a framework route.
 - **Suggestion:** say `npm install @modelcontextprotocol/node` in that JSDoc, or ship a small `toNodeHandler` inside the server package since `node:http` is the most common host.
+
+## F5 · Next.js 16 — `next dev --webpack` races on its own manifests during on-demand compiles
+
+*2026-09-14 · console and tools build agents · Next 16.3.5, webpack mode (see F1 for why)*
+
+- **Task attempted:** drive the freshly built console and the MCP route with a browser and the e2e harness against `next dev --webpack` in a git worktree, hitting several routes for the first time in quick succession (login → dashboard → pending → audit, while the harness POSTs to `/api/mcp`).
+- **Steps:** `npm run dev -- --webpack -p 3123`, then open the routes one after another; separately `E2E_NEXT_ARGS=--webpack npm run e2e`.
+- **Expected:** on-demand compilation is slower on the first visit to each route and then stable; a page either renders or shows a compile error.
+- **Actual:** intermittent 500s that had nothing to do with our code: `Manifest file is empty` and `Unexpected end of JSON input` from the dev server reading one of its own manifests while another on-demand compile was writing it. Reloading the page fixed it every time. `next build && next start` never showed it, and neither did Turbopack on a real (non-symlinked) `node_modules`.
+- **Severity:** Medium — real time went into chasing a 500 that was not in our code, and an automated check that hits several cold routes at once cannot be trusted in this mode.
+- **Workaround:** warm each route with one request before driving it; retry once on a 500 during development; run the final checks and the video against `next build` + `next start`.
+- **Suggestion:** write the dev manifests atomically (temp file + rename) and serialise on-demand compiles that touch the same manifest; when a manifest read fails to parse, retry it once instead of surfacing a 500 to the page.
+
+## F6 · mcp-handler — a fresh `McpServer` per request means every tool's zod schemas are converted again on every request
+
+*2026-09-14 · tools build agent · mcp-handler 2.1.1, @modelcontextprotocol/server 2.0.0*
+
+- **Task attempted:** keep `tools/list` and `tools/call` fast with 31 tools, each carrying a zod v4 input schema and an output schema.
+- **Steps:** timed the first and the warm `tools/list` from the e2e client; read `mcp-handler/dist/index.mjs` to see where the time goes.
+- **Expected:** the tool registrations (and the zod → JSON Schema conversion the SDK does for `inputSchema` / `outputSchema`) to happen once per process.
+- **Actual:** `createMcpHandler` calls the factory on **every** request, building a new `McpServer` and re-registering all 31 tools, so the SDK converts the 31 input and output zod schemas again each time. Measured on our VPS: about 3 s for the first request (module load, PGlite start and the conversions together) and about 30 ms per warm request, which is fine for a home server but scales with the tool count and is repeated work. The stateless design that causes it is also what we want (no sessions, any number of hosts).
+- **Severity:** Low — no user-visible problem at this size; it becomes one at a few hundred tools or on a small host.
+- **Workaround:** keep everything the factory touches as module-level constants (schemas, catalogue, the cached `ui/pending.html`) so the per-request cost is only the registration itself; nothing is computed inside `registerTools`.
+- **Suggestion:** let `createMcpHandler` accept a prebuilt `McpServer` (or a memoised factory keyed by nothing) for stateless deployments, or have the SDK cache the JSON Schema per zod object in a `WeakMap` so re-registration is cheap.
 
 ---
 

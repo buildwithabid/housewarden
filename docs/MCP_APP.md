@@ -131,9 +131,10 @@ no capability declaration, no extra route, no change to `tools/list` or
 - Stateless serving means the server cannot honour "check client capabilities
   before registering UI-enabled tools"; the text-only fallback the spec asks
   for is always present instead.
-- `ui/pending.html` is read from `process.cwd()/ui/pending.html`. For a
-  `next build` with `output: "standalone"`, add `ui/pending.html` to
-  `outputFileTracingIncludes` (or ship the `ui/` folder next to the server).
+- `ui/pending.html` is read from `process.cwd()/ui/pending.html`, so
+  `next.config.ts` lists it under `outputFileTracingIncludes` for the
+  `output: "standalone"` build; a hand-rolled deployment must ship the `ui/`
+  folder next to the server.
 - `ui/update-model-context` and `ui/message` are not used: a decision is
   already visible to the model through the next tool result, and injecting
   chat messages from a card felt wrong for a safety surface.

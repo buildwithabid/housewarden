@@ -87,8 +87,8 @@ Lists bills, unpaid ones by default, soonest first. Optionally needs a status fi
 ```json
 { "name": "list_bills", "arguments": { "status": "unpaid" } }
 → { "bills": [ { "…Electricity overdue…" }, { "id": "…", "name": "Gas", "amount": 1800, "currency": "PKR", "amount_formatted": "1,800 PKR", "due_date": "2026-10-09", "recurrence": "monthly", "status": "due", "paid_at": null, "days_until_due": 4 } ],
-    "totals_due": [ { "currency": "PKR", "amount": 31300, "amount_formatted": "31,300 PKR" } ] }
-spoken: "Five bills are unpaid, 31,300 rupees in total. Electricity is overdue; Gas is due in four days."
+    "totals_due": [ { "currency": "PKR", "amount": 69300, "amount_formatted": "69,300 PKR" } ] }
+spoken: "Five bills are unpaid, 69,300 rupees in total. Electricity is overdue; Gas is due in four days."
 ```
 
 ### 4. `get_bill` — risk `read`
@@ -106,7 +106,7 @@ Reads one bill in detail. Needs the bill name or id.
 ```json
 { "name": "get_bill", "arguments": { "bill": "Internet" } }
 → { "bill": { "id": "…", "name": "Internet", "amount": 2500, "currency": "PKR", "amount_formatted": "2,500 PKR", "due_date": "2026-10-17", "recurrence": "monthly", "status": "due", "paid_at": null, "days_until_due": 12 } }
-spoken: "Internet: 2,500 rupees, due in 12 days, repeats monthly."
+spoken: "Internet: 2,500 rupees, due on 17 October, repeats monthly."
 ```
 
 ### 5. `list_chores` — risk `read`

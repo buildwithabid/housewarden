@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Housewarden demo stage</title>
+<style>
+  :root {
+    --bg: #14130f; --surface: #1e1c18; --ink: #ece9e1; --ink-2: #b6b2a7; --ink-3: #807c72;
+    --accent: #5cc49a; --accent-deep: #1e6b4f; --warn: #e9a24c; --danger: #f08585; --info: #7faae8;
+    --border: #36332c; --paper: #f6f4ee; --paper-ink: #1b1a17;
+  }
+  html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: var(--paper);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--paper-ink); }
+  #stage { position: relative; width: 1280px; height: 650px; overflow: hidden; background: var(--paper); }
+
+  /* The console, live, same origin (cookies flow). */
+  #console { position: absolute; top: 0; left: 0; width: 1280px; height: 650px; border: 0; background: var(--paper); z-index: 1; }
+
+  /* The MCP client, replayed live. */
+  /* Overlays stack above the live console and never take pointer events, so the console stays clickable while covered. */
+  #terminal { position: absolute; top: 0; left: 0; width: 1280px; height: 650px; box-sizing: border-box; padding: 20px 28px; z-index: 2; pointer-events: none;
+    background: var(--bg); color: var(--ink); display: flex; flex-direction: column; gap: 10px;
+    font: 15.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+  #term-head { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  #term-head .dot { width: 10px; height: 10px; border-radius: 50%; background: #3a3833; }
+  #term-head .dot.g { background: var(--accent); }
+  #term-body { flex: 1; overflow: hidden; white-space: pre-wrap; word-break: break-word; }
+  .ln { min-height: 1.55em; }
+  .ln.head { color: var(--ink); font-weight: 700; margin-top: 10px; }
+  .ln.rule { color: var(--ink-3); }
+  .ln.you .p { color: var(--info); }
+  .ln.alexa .p { color: var(--accent); }
+  .ln.call, .ln.note, .ln.dim { color: var(--ink-3); }
+  .ln.call .a { color: var(--ink-2); }
+  .ln.result .t { color: var(--accent); }
+  .ln.warn .t { color: var(--warn); }
+  .ln.bad .t { color: var(--danger); }
+  .ln .p { display: inline-block; min-width: 9ch; }
+  .cursor::after { content: "▍"; color: var(--ink-2); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Layout modes. */
+  body.mode-console #terminal { display: none; }
+  body.mode-split #terminal { width: 520px; }
+  body.mode-split #console { left: 520px; width: 760px; }
+  body.mode-slide #terminal { display: none; }
+
+  /* Slides. */
+  #slide { position: absolute; inset: 0; display: none; background: var(--paper); color: var(--paper-ink); z-index: 3; pointer-events: none; }
+  body.mode-slide #slide { display: block; }
+  .title { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  .title .mark { display: flex; align-items: center; gap: 18px; font-size: 64px; font-weight: 650; letter-spacing: -0.02em; }
+  .title .tag { font-size: 26px; color: #57544c; }
+  .title .sub { font-size: 18px; color: #8a867b; margin-top: 8px; }
+  .built { height: 100%; box-sizing: border-box; padding: 48px 72px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  .built h2 { grid-column: 1 / -1; margin: 0 0 4px; font-size: 34px; font-weight: 650; letter-spacing: -0.01em; }
+  .built ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .built li { opacity: 0; transform: translateY(6px); transition: opacity .45s ease, transform .45s ease; font-size: 19px; line-height: 1.4;
+    padding-left: 44px; position: relative; }
+  .built li.on { opacity: 1; transform: none; }
+  .built li b { display: block; font-size: 21px; color: var(--accent-deep); margin-bottom: 2px; }
+  .built li::before { content: attr(data-n); position: absolute; left: 0; top: 2px; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-deep);
+    color: #fff; font-weight: 650; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+  .built .right { border: 1px solid #dcd8ce; border-radius: 14px; background: #fff; padding: 22px 26px; font-size: 17px; line-height: 1.5; color: #57544c; }
+  .built .right pre { margin: 12px 0 0; background: var(--bg); color: var(--ink); border-radius: 10px; padding: 14px 18px; font-size: 15px; line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace; white-space: pre; }
+  .built .right pre .c { color: var(--ink-3); }
+  .built .right pre .g { color: var(--accent); }
+  .repo { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  .repo .url { font-size: 44px; font-weight: 650; letter-spacing: -0.01em; }
+  .repo .line { font-size: 22px; color: #57544c; }
+  .repo .small { font-size: 17px; color: #8a867b; margin-top: 10px; }
+  .chip { display: inline-block; border-radius: 999px; padding: 4px 12px; font-size: 15px; background: #ddefe6; color: var(--accent-deep); margin: 0 4px; }
+
+  /* Burned-in captions. */
+  #caption { position: absolute; left: 0; top: 650px; width: 1280px; height: 70px; box-sizing: border-box; background: var(--paper-ink); color: #f6f4ee;
+    display: flex; align-items: center; gap: 18px; padding: 0 28px; }
+  #cap-tag { flex: none; min-width: 92px; text-align: center; border-radius: 999px; padding: 6px 12px; background: var(--accent-deep); color: #fff; font-size: 14px; font-weight: 650; letter-spacing: .02em; }
+  #cap-tag:empty { display: none; }
+  #cap-text { font-size: 21px; line-height: 1.25; transition: opacity .25s ease; }
+</style>
+</head>
+<body class="mode-slide">
+  <div id="stage">
+    <iframe id="console" name="console" title="Housewarden console" src="/login"></iframe>
+    <div id="terminal">
+      <div id="term-head"><span class="dot g"></span><span class="dot"></span><span class="dot"></span><span id="term-title">npm run demo:client — an MCP client over Streamable HTTP</span></div>
+      <div id="term-body"></div>
+    </div>
+    <div id="slide"></div>
+  </div>
+  <div id="caption"><span id="cap-tag"></span><span id="cap-text"></span></div>
+
+<script>
+(() => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const body = document.getElementById("term-body");
+  const slide = document.getElementById("slide");
+  const capTag = document.getElementById("cap-tag");
+  const capText = document.getElementById("cap-text");
+  let charMs = 26;
+
+  const H_SVG = '<svg aria-hidden="true" viewBox="0 0 32 32" width="72" height="72"><rect width="32" height="32" rx="7" fill="#1e6b4f"/><path d="M8 24V8h3.4v6.3h9.2V8H24v16h-3.4v-6.7h-9.2V24z" fill="#fff"/></svg>';
+
+  function setMode(mode) {
+    document.body.className = `mode-${mode}`;
+  }
+
+  async function caption(tag, text) {
+    capText.style.opacity = "0";
+    await sleep(180);
+    capTag.textContent = tag || "";
+    capText.textContent = text || "";
+    capText.style.opacity = "1";
+  }
+
+  function scrollTerm() {
+    body.scrollTop = body.scrollHeight;
+  }
+
+  async function line(kind, prefix, text, typed) {
+    const el = document.createElement("div");
+    el.className = `ln ${kind}`;
+    if (prefix) {
+      const p = document.createElement("span");
+      p.className = "p";
+      p.textContent = prefix;
+      el.appendChild(p);
+    }
+    const t = document.createElement("span");
+    t.className = kind === "call" ? "a" : "t";
+    el.appendChild(t);
+    body.appendChild(el);
+    if (typed && charMs > 0) {
+      t.classList.add("cursor");
+      for (const ch of text) {
+        t.textContent += ch;
+        scrollTerm();
+        await sleep(charMs);
+      }
+      t.classList.remove("cursor");
+    } else {
+      t.textContent = text;
+    }
+    scrollTerm();
+  }
+
+  function clearTerm() {
+    body.textContent = "";
+  }
+
+  function setTermTitle(text) {
+    document.getElementById("term-title").textContent = text;
+  }
+
+  function titleSlide(tagline, sub) {
+    slide.innerHTML = `<div class="title"><div class="mark">${H_SVG}<span>Housewarden</span></div><div class="tag">${tagline}</div><div class="sub">${sub}</div></div>`;
+  }
+
+  function builtSlide(items, rightHtml) {
+    const lis = items.map((it, i) => `<li data-n="${i + 1}"><b>${it.title}</b>${it.body}</li>`).join("");
+    slide.innerHTML = `<div class="built"><h2>How it is built</h2><ol>${lis}</ol><div class="right">${rightHtml}</div></div>`;
+  }
+
+  function revealBuilt(n) {
+    const items = slide.querySelectorAll("li");
+    items.forEach((li, i) => li.classList.toggle("on", i < n));
+  }
+
+  function repoSlide() {
+    slide.innerHTML = `<div class="repo">${H_SVG}<div class="url">github.com/buildwithabid/housewarden</div><div class="line">MIT licensed · self-hosted · zero setup</div><div><span class="chip">Alexa+ track · MCP server</span><span class="chip">Open Source mini challenge</span></div><div class="small">Amazon Developer Hackathon 2026</div></div>`;
+  }
+
+  window.hw = { setMode, caption, line, clearTerm, setTermTitle, titleSlide, builtSlide, revealBuilt, repoSlide, setCharMs: (ms) => { charMs = ms; } };
+})();
+</script>
+</body>
+</html>

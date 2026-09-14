@@ -20,7 +20,9 @@ function toResult<T extends Row>(res: { rows: T[]; affectedRows?: number }): Que
 
 export async function createPgliteDb(dataDir: string): Promise<CoreDb> {
   const isMemory = dataDir === DEFAULTS.DATA_DIR_MEMORY;
-  const resolved = isMemory ? dataDir : path.resolve(process.cwd(), dataDir);
+  // turbopackIgnore: the data directory is runtime configuration, not an asset;
+  // without the hint Turbopack traces the whole project into the standalone build.
+  const resolved = isMemory ? dataDir : path.resolve(/* turbopackIgnore: true */ process.cwd(), dataDir);
   if (!isMemory) fs.mkdirSync(resolved, { recursive: true });
 
   const pg = await PGlite.create(resolved, {

@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { DB_KINDS, DEFAULTS, ENV, type DbKind } from "@/lib/contracts";
+import { isMcpAppEnabled } from "@/lib/mcpapp/register";
 
 export const PG_SSL_MODES = ["auto", "require", "disable", "no-verify"] as const;
 export type PgSslMode = (typeof PG_SSL_MODES)[number];
@@ -21,6 +22,7 @@ export interface Env {
   adminSecret: string | null;
   allowedOrigins: readonly string[];
   confirmTtlSeconds: number;
+  /** MCP App resource on (default) or switched off with HOUSEWARDEN_MCP_APP=0. */
   mcpApp: boolean;
   publicUrl: string | null;
   cookieSecure: boolean;
@@ -48,7 +50,6 @@ const RawEnvSchema = z.object({
   [ENV.ADMIN_SECRET]: optionalString,
   [ENV.ALLOWED_ORIGINS]: z.string().optional(),
   [ENV.CONFIRM_TTL_SECONDS]: z.coerce.number().int().min(30).max(86_400).optional(),
-  [ENV.MCP_APP]: flag,
   [ENV.PUBLIC_URL]: optionalString,
   [ENV.COOKIE_SECURE]: flag,
   [ENV.TIMEZONE]: z.string().optional(),
@@ -85,7 +86,7 @@ export function readEnv(source: Record<string, string | undefined> = process.env
     adminSecret: raw[ENV.ADMIN_SECRET],
     allowedOrigins,
     confirmTtlSeconds: raw[ENV.CONFIRM_TTL_SECONDS] ?? DEFAULTS.CONFIRM_TTL_SECONDS,
-    mcpApp: raw[ENV.MCP_APP],
+    mcpApp: isMcpAppEnabled(source),
     publicUrl: raw[ENV.PUBLIC_URL],
     cookieSecure: raw[ENV.COOKIE_SECURE],
     timezone,

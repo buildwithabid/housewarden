@@ -167,7 +167,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               )}
             </Row>
             <Row label="Confirmation window">{Math.round(e.confirmTtlSeconds / 60)} minutes before a pending action expires.</Row>
-            <Row label="MCP App">{e.mcpApp ? "On: hosts that support MCP Apps get the pending-approvals view inline." : "Off. Set HOUSEWARDEN_MCP_APP=1 to serve the pending-approvals view to hosts that support MCP Apps."}</Row>
+            <Row label="MCP App">{e.mcpApp ? "On: hosts that support MCP Apps get the pending-approvals view inline." : "Off (HOUSEWARDEN_MCP_APP=0). Remove that setting to serve the pending-approvals view to hosts that support MCP Apps."}</Row>
           </dl>
         </div>
       </Section>

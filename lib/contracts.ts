@@ -783,7 +783,8 @@ export const DEFAULTS = {
   PG_SSL: "auto" as "auto" | "require" | "disable" | "no-verify",
   ALLOWED_ORIGINS: "" as string,
   CONFIRM_TTL_SECONDS: 600,
-  MCP_APP: false,
+  /** The MCP App is on unless HOUSEWARDEN_MCP_APP is 0/false/off/no (lib/mcpapp/register.ts is the reader). */
+  MCP_APP: true,
   COOKIE_SECURE: false,
   TIMEZONE: "Asia/Karachi",
   CURRENCY: "PKR",

@@ -212,7 +212,7 @@ All settings are environment variables; `.env.example` documents each. The ones 
 | `HOUSEWARDEN_CONFIRM_TTL_SECONDS` | `600` | How long a pending action waits for approval |
 | `HOUSEWARDEN_PUBLIC_URL` | derived from the request | Endpoint URL shown on `/settings` |
 | `HOUSEWARDEN_COOKIE_SECURE` | `0` | Set `1` behind HTTPS |
-| `HOUSEWARDEN_MCP_APP` | `0` | `1` registers the `ui://housewarden/pending` MCP App resource (hosts that ignore it are unaffected) |
+| `HOUSEWARDEN_MCP_APP` | on | `0` switches off the `ui://housewarden/pending` MCP App resource (on by default; hosts that ignore it are unaffected) |
 | `HOUSEWARDEN_TIMEZONE`, `HOUSEWARDEN_CURRENCY` | `Asia/Karachi`, `PKR` | Used when the demo household is created |
 
 ## Self-hosting
@@ -225,6 +225,8 @@ npm run build          # next build, output: "standalone"
 HOUSEWARDEN_TOKEN=… HOUSEWARDEN_ADMIN_SECRET=… HOUSEWARDEN_COOKIE_SECURE=1 \
 HOUSEWARDEN_PUBLIC_URL=https://housewarden.example.com npm run start
 ```
+
+`npm run start` serves a full checkout (Next prints a note that the standalone entry point is `node .next/standalone/server.js`; both work). For a minimal deployment copy `.next/standalone` — it already contains `db/migrations` and `ui/pending.html` — plus `.next/static` into `.next/standalone/.next/static`, and run `node server.js` there with the same environment.
 
 - **Storage**: the embedded PGlite database lives in `HOUSEWARDEN_DATA_DIR` and needs one writable directory (back it up like any file). For a managed Postgres set `DATABASE_URL` (with `?sslmode=require` when needed) and `HOUSEWARDEN_DB=pg`; migrations apply on first start either way.
 - **TLS**: terminate HTTPS in front (Caddy, nginx, a platform's edge) and set `HOUSEWARDEN_COOKIE_SECURE=1`. The endpoint must be reachable by the host you connect (for Alexa+, a public HTTPS URL).

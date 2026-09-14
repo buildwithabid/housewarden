@@ -65,7 +65,6 @@ MCP SDK v2's output schemas plus a client that validates `structuredContent` mak
 
 ### What's next
 
-- The MCP Apps extension: a `ui://housewarden/pending` resource (behind `HOUSEWARDEN_MCP_APP=1`) so hosts that support MCP Apps render Housewarden's own approval card inside the assistant.
 - Real device back-ends behind the same `set_device_state` contract.
 - Per-member PINs for voice approvals, and household-level notification of pending actions.
 

@@ -393,7 +393,7 @@ Actor for MCP calls is always `ASSISTANT_ACTOR`; `input.member` names the person
 | `HOUSEWARDEN_ADMIN_SECRET` | — (required for console) | Console login secret; ≥ 8 chars |
 | `HOUSEWARDEN_ALLOWED_ORIGINS` | `` (empty) | Comma-separated full origins allowed to send an `Origin` header |
 | `HOUSEWARDEN_CONFIRM_TTL_SECONDS` | `600` | Pending action lifetime |
-| `HOUSEWARDEN_MCP_APP` | `0` | `1` registers the `ui://housewarden/pending` resource and `_meta.ui` on the guard tools |
+| `HOUSEWARDEN_MCP_APP` | on (unset) | `0` (also `false`, `off`, `no`) switches off the `ui://housewarden/pending` resource and the `_meta.ui` on the guard tools |
 | `HOUSEWARDEN_PUBLIC_URL` | derived from request | Shown on `/settings` as the endpoint URL |
 | `HOUSEWARDEN_COOKIE_SECURE` | `0` | `1` sets the `Secure` flag on the console cookie |
 | `HOUSEWARDEN_TIMEZONE` | `Asia/Karachi` | Timezone for a household created by the seed |
@@ -506,9 +506,9 @@ tools and call `get_household_summary`.
 
 ### 11.3 MCP App (feature-flagged)
 
-With `HOUSEWARDEN_MCP_APP=1`:
+On by default; `HOUSEWARDEN_MCP_APP=0` (also `false`, `off`, `no`) switches it off and `isMcpAppEnabled()` in `lib/mcpapp/register.ts` is the only reader of the flag. When on:
 
-- `server.registerResource("pending-approvals", MCP_APP_RESOURCE_URI, { title: "Pending approvals", mimeType: MCP_APP_MIME_TYPE, _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } } }, async uri => ({ contents: [{ uri: uri.href, mimeType: MCP_APP_MIME_TYPE, text: html, _meta: { ui: { prefersBorder: true } } }] }))` where `html` is `ui/pending.html` read at build time (inlined by `lib/mcpapp/html.ts`; no external assets, no CDN).
+- `server.registerResource("pending-approvals", MCP_APP_RESOURCE_URI, { title: "Pending approvals", mimeType: MCP_APP_MIME_TYPE, _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } } }, async uri => ({ contents: [{ uri: uri.href, mimeType: MCP_APP_MIME_TYPE, text: html, _meta: { ui: { prefersBorder: true } } }] }))` where `html` is `ui/pending.html`, read from disk once per process and cached by `lib/mcpapp/html.ts` (no external assets, no CDN; `next.config.ts` traces the file into the standalone build with `outputFileTracingIncludes`).
 - `list_pending_actions`, `confirm_action`, `reject_action` carry `_meta: { ui: { resourceUri: "ui://housewarden/pending" } }`.
 - `ui/pending.html` is dependency-free: on load it posts `ui/initialize`, renders `ui/notifications/tool-result` payloads (the `structuredContent` of `list_pending_actions`), and its Approve/Reject buttons send `tools/call` requests for `confirm_action` / `reject_action` over `postMessage`, then re-call `list_pending_actions`. It renders the same confirmation-card pattern as the console (docs/DESIGN.md).
 - `GET /api/mcp/ui` serves the same HTML with `text/html` for browser preview (flag on, no auth; it contains no data).
