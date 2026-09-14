@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Housewarden — Pending approvals</title>
+<style>
+/* Hearth tokens (docs/DESIGN.md §1). No external assets: system font stacks only. */
+:root {
+  --bg: #F6F4EE; --surface: #FFFFFF; --surface-2: #EFECE4; --border: #DCD8CE;
+  --ink: #1B1A17; --ink-2: #57544C; --ink-3: #8A867B;
+  --accent: #1E6B4F; --accent-ink: #FFFFFF; --accent-soft: #DDEFE6;
+  --warn: #A15A00; --warn-soft: #FBEBD3; --danger: #A32D2D; --danger-soft: #F7DEDE;
+  --info: #2C5C9A; --info-soft: #DCE7F6; --focus: #1E6B4F;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14130F; --surface: #1E1C18; --surface-2: #26241F; --border: #36332C;
+    --ink: #ECE9E1; --ink-2: #B6B2A7; --ink-3: #807C72;
+    --accent: #5CC49A; --accent-ink: #0F1F19; --accent-soft: #1C3A2E;
+    --warn: #E9A24C; --warn-soft: #3B2A12; --danger: #F08585; --danger-soft: #3F1D1D;
+    --info: #7FAAE8; --info-soft: #1B2C45; --focus: #5CC49A;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14130F; --surface: #1E1C18; --surface-2: #26241F; --border: #36332C;
+  --ink: #ECE9E1; --ink-2: #B6B2A7; --ink-3: #807C72;
+  --accent: #5CC49A; --accent-ink: #0F1F19; --accent-soft: #1C3A2E;
+  --warn: #E9A24C; --warn-soft: #3B2A12; --danger: #F08585; --danger-soft: #3F1D1D;
+  --info: #7FAAE8; --info-soft: #1B2C45; --focus: #5CC49A;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+* { box-sizing: border-box; }
+html, body { height: auto; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 0.875rem/1.25rem var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+main { padding: 16px; max-width: 72rem; margin: 0 auto; }
+p, ul { margin: 0; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.125rem; line-height: 1.625rem; font-weight: 600; }
+.top .btn { margin-left: auto; }
+
+.chip {
+  display: inline-block; padding: 0 8px; border-radius: 6px;
+  font-size: 0.75rem; line-height: 1.125rem; font-weight: 500; white-space: nowrap;
+}
+.chip-warn { background: var(--warn-soft); color: var(--warn); }
+.chip-danger { background: var(--danger-soft); color: var(--danger); }
+.chip-accent { background: var(--accent-soft); color: var(--accent); }
+.chip-info { background: var(--info-soft); color: var(--info); }
+.chip-muted { background: var(--surface-2); color: var(--ink-3); }
+.chip-danger-muted { background: var(--danger-soft); color: var(--ink-3); }
+
+.btn {
+  min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 6px; cursor: pointer;
+  font: 500 0.875rem/1.25rem var(--font-sans);
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  transition: background-color 150ms, color 150ms, border-color 150ms;
+}
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(0.95); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.meta { color: var(--ink-2); font-size: 0.875rem; line-height: 1.25rem; }
+.label-xs { color: var(--ink-2); font-size: 0.75rem; line-height: 1rem; text-transform: uppercase; letter-spacing: 0.02em; margin-top: 16px; }
+.mono { font-family: var(--font-mono); }
+
+.flash { margin-top: 12px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); }
+.flash-accent { background: var(--accent-soft); border-color: transparent; }
+.flash-muted { background: var(--surface-2); }
+.flash-danger { background: var(--danger-soft); border-color: transparent; }
+
+.empty, .notice {
+  margin-top: 12px; padding: 24px 16px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); text-align: center;
+}
+.empty .title, .notice .title { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.empty .meta, .notice .meta { margin-top: 4px; }
+.notice-danger { border-color: var(--danger); }
+
+/* Confirmation card (docs/DESIGN.md §4.3) */
+.card {
+  margin-top: 12px; border-radius: 14px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.card.is-done { box-shadow: none; }
+.card-head { background: var(--warn-soft); padding: 12px 16px; }
+.risk-high .card-head { background: var(--danger-soft); }
+.is-done .card-head { background: var(--surface-2); }
+.head-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.head-label { font-size: 0.75rem; line-height: 1rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--warn); }
+.risk-high .head-label { color: var(--danger); }
+.is-done .head-label { color: var(--ink-2); }
+.countdown { margin-left: auto; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1rem; color: var(--ink-2); }
+.summary { margin-top: 4px; font-size: 1.125rem; line-height: 1.625rem; font-weight: 500; }
+.is-done .summary { color: var(--ink-2); }
+.card-body { padding: 12px 16px 16px; }
+
+.changes { list-style: none; padding: 0; margin-top: 4px; }
+.changes li { display: grid; grid-template-columns: 7rem 1fr; gap: 2px 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.changes li:first-child { border-top: 0; }
+.entity { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.25rem; color: var(--ink-3); }
+.name { font-weight: 500; }
+.is-delete .name { text-decoration: line-through; color: var(--ink-3); }
+.arrow { color: var(--ink-2); }
+
+.warnings { list-style: none; padding: 0; margin-top: 12px; }
+.warnings li { padding: 2px 0; }
+.glyph { color: var(--warn); }
+
+.card-error { margin-top: 12px; padding: 8px 12px; border-radius: 6px; background: var(--danger-soft); color: var(--ink); }
+.console-only { flex-basis: 100%; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+
+.foot { margin-top: 12px; color: var(--ink-3); font-size: 0.75rem; line-height: 1rem; }
+
+@media (max-width: 480px) {
+  .changes li { display: block; }
+  .entity::after { content: " · "; }
+  .actions .btn { flex: 1 1 100%; }
+  .actions .btn-primary { order: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}
+</style>
+</head>
+<body>
+<main id="app" aria-busy="true">
+  <header class="top">
+    <h1>Pending approvals</h1>
+    <span id="count" class="chip chip-muted" hidden></span>
+    <button id="refresh" type="button" class="btn">Refresh</button>
+  </header>
+  <div id="flash" class="flash" role="status" aria-live="polite" hidden></div>
+  <section id="list" aria-label="Pending approvals"></section>
+  <p id="foot" class="foot"></p>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  // MCP Apps (SEP-1865, specification 2026-01-26). The host embeds this
+  // document in an iframe and speaks JSON-RPC 2.0 over window.postMessage.
+  // Method names below are the spec's; see docs/MCP_APP.md for the quotes.
+  var PROTOCOL_VERSION = "2026-01-26";
+  var APP_INFO = { name: "housewarden-pending", version: "0.1.0" };
+  var LIST_TOOL = "list_pending_actions";
+  var CONFIRM_TOOL = "confirm_action";
+  var REJECT_TOOL = "reject_action";
+  var INITIAL_FETCH_GRACE_MS = 1500;
+  var REQUEST_TIMEOUT_MS = 60000;
+  var INIT_TIMEOUT_MS = 15000;
+
+  var inHost = window.parent !== window;
+  var demo = !inHost && /[?&]demo(=|&|$)/.test(window.location.search);
+
+  var state = {
+    phase: "loading",      // loading | ready | empty | error | standalone
+    actions: [],
+    pendingCount: 0,
+    error: "",
+    busy: {},              // action id -> "approve" | "reject"
+    cardErrors: {},        // action id -> message
+    flash: null,           // { tone: accent | muted | danger, text }
+    refreshing: false
+  };
+
+  // ---------------------------------------------------------------- bridge
+  var nextId = 1;
+  var pendingRequests = {};
+  var initialFetchTimer = 0;
+
+  function post(message) { window.parent.postMessage(message, "*"); }
+
+  function request(method, params, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++;
+      var timer = setTimeout(function () {
+        delete pendingRequests[id];
+        reject(new Error("No reply from the host for " + method + "."));
+      }, timeoutMs || REQUEST_TIMEOUT_MS);
+      pendingRequests[id] = { resolve: resolve, reject: reject, timer: timer };
+      post({ jsonrpc: "2.0", id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) { post({ jsonrpc: "2.0", method: method, params: params }); }
+  function respond(id, result) { post({ jsonrpc: "2.0", id: id, result: result }); }
+  function respondError(id, code, message) { post({ jsonrpc: "2.0", id: id, error: { code: code, message: message } }); }
+
+  window.addEventListener("message", function (event) {
+    // Only the embedding window may talk to us; everything else is ignored.
+    if (!inHost || event.source !== window.parent) return;
+    var msg = event.data;
+    if (!msg || typeof msg !== "object" || msg.jsonrpc !== "2.0") return;
+    var hasId = msg.id !== undefined && msg.id !== null;
+    if (hasId && typeof msg.method !== "string") {
+      var waiting = pendingRequests[msg.id];
+      if (!waiting) return;
+      delete pendingRequests[msg.id];
+      clearTimeout(waiting.timer);
+      if (msg.error) waiting.reject(new Error(msg.error.message || "The host returned an error."));
+      else waiting.resolve(msg.result);
+      return;
+    }
+    if (typeof msg.method !== "string") return;
+    if (hasId) handleHostRequest(msg);
+    else handleHostNotification(msg.method, msg.params || {});
+  });
+
+  function handleHostRequest(msg) {
+    switch (msg.method) {
+      case "ui/resource-teardown":
+        cancelInitialFetch();
+        respond(msg.id, {});
+        break;
+      case "ping":
+        respond(msg.id, {});
+        break;
+      default:
+        respondError(msg.id, -32601, "Method not found: " + msg.method);
+    }
+  }
+
+  function handleHostNotification(method, params) {
+    switch (method) {
+      case "ui/notifications/tool-input":
+      case "ui/notifications/tool-input-partial":
+        // The host is running the tool we are attached to; its result follows.
+        cancelInitialFetch();
+        break;
+      case "ui/notifications/tool-result":
+        applyToolResult(params, false);
+        break;
+      case "ui/notifications/tool-cancelled":
+        cancelInitialFetch();
+        showError("The assistant cancelled the request." + (params.reason ? " " + params.reason : ""));
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function callTool(name, args) {
+    if (demo) return demoCallTool(name, args);
+    return request("tools/call", { name: name, arguments: args });
+  }
+
+  function applyHostContext(ctx) {
+    if (!ctx || typeof ctx !== "object") return;
+    if (ctx.theme === "dark" || ctx.theme === "light") {
+      document.documentElement.setAttribute("data-theme", ctx.theme);
+    }
+  }
+
+  function startSizeReporting() {
+    if (typeof ResizeObserver !== "function") return;
+    var raf = 0;
+    var report = function () {
+      raf = 0;
+      var rect = document.body.getBoundingClientRect();
+      notify("ui/notifications/size-changed", { width: Math.ceil(rect.width), height: Math.ceil(rect.height) });
+    };
+    var observer = new ResizeObserver(function () {
+      if (!raf) raf = window.requestAnimationFrame(report);
+    });
+    observer.observe(document.body);
+    observer.observe(document.documentElement);
+    report();
+  }
+
+  function scheduleInitialFetch() {
+    cancelInitialFetch();
+    initialFetchTimer = setTimeout(function () { initialFetchTimer = 0; refresh(); }, INITIAL_FETCH_GRACE_MS);
+  }
+  function cancelInitialFetch() {
+    if (initialFetchTimer) { clearTimeout(initialFetchTimer); initialFetchTimer = 0; }
+  }
+
+  // ------------------------------------------------------------- behaviour
+  function refresh() {
+    cancelInitialFetch();
+    state.refreshing = true;
+    render();
+    return callTool(LIST_TOOL, {}).then(function (result) {
+      state.refreshing = false;
+      applyToolResult(result, true);
+    }, function (err) {
+      state.refreshing = false;
+      showError("Couldn't load pending approvals. " + messageOf(err));
+    });
+  }
+
+  function applyToolResult(result, fromList) {
+    cancelInitialFetch();
+    if (!result || typeof result !== "object") {
+      if (fromList) showError("The assistant returned an unexpected reply. Try again.");
+      else refresh();
+      return;
+    }
+    if (result.isError) { showError(errorMessage(result)); return; }
+    var sc = result.structuredContent;
+    if (sc && Array.isArray(sc.actions)) {
+      state.actions = sc.actions;
+      state.pendingCount = typeof sc.pending_count === "number"
+        ? sc.pending_count
+        : sc.actions.filter(function (a) { return a && a.status === "pending"; }).length;
+      state.error = "";
+      state.phase = sc.actions.length ? "ready" : "empty";
+      render();
+      return;
+    }
+    if (fromList) { showError("The assistant returned an unexpected reply. Try again."); return; }
+    // A confirm_action / reject_action outcome the host attached us to.
+    if (sc && sc.status === "executed") state.flash = { tone: "accent", text: "Done: " + summaryOf(sc, null) };
+    else if (sc && sc.status === "rejected") state.flash = { tone: "muted", text: "Not done: " + summaryOf(sc, null) };
+    refresh();
+  }
+
+  function decide(action, kind) {
+    state.busy[action.id] = kind;
+    delete state.cardErrors[action.id];
+    state.flash = null;
+    render();
+    var tool = kind === "approve" ? CONFIRM_TOOL : REJECT_TOOL;
+    callTool(tool, { action_id: action.id }).then(function (result) {
+      delete state.busy[action.id];
+      if (result && result.isError) {
+        state.cardErrors[action.id] = errorMessage(result);
+        render();
+        return;
+      }
+      var sc = (result && result.structuredContent) || {};
+      state.flash = kind === "approve"
+        ? { tone: "accent", text: "Done: " + summaryOf(sc, action) }
+        : { tone: "muted", text: "Not done: " + summaryOf(sc, action) };
+      refresh();
+    }, function (err) {
+      delete state.busy[action.id];
+      state.cardErrors[action.id] = "Couldn't reach the assistant. " + messageOf(err);
+      render();
+    });
+  }
+
+  function showError(message) {
+    if (state.actions.length) {
+      state.flash = { tone: "danger", text: message };
+    } else {
+      state.phase = "error";
+      state.error = message;
+    }
+    render();
+  }
+
+  // -------------------------------------------------------------- helpers
+  function messageOf(err) { return err && err.message ? err.message : "Unknown error."; }
+
+  function firstText(result) {
+    var content = result && result.content;
+    if (!Array.isArray(content)) return "";
+    for (var i = 0; i < content.length; i++) {
+      var block = content[i];
+      if (block && block.type === "text" && typeof block.text === "string") return block.text;
+    }
+    return "";
+  }
+
+  function errorMessage(result) {
+    var sc = result && result.structuredContent;
+    if (sc && sc.error && typeof sc.error.message === "string") return sc.error.message;
+    return firstText(result) || "Something went wrong. Try again.";
+  }
+
+  function summaryOf(sc, action) {
+    if (sc && sc.preview && typeof sc.preview.summary === "string") return sc.preview.summary;
+    if (action && action.preview && typeof action.preview.summary === "string") return action.preview.summary;
+    return toolTitle((sc && sc.tool) || (action && action.tool) || "action");
+  }
+
+  function toolTitle(tool) {
+    var words = String(tool).replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
+  function msUntil(iso) {
+    var t = Date.parse(iso);
+    return isNaN(t) ? Infinity : t - Date.now();
+  }
+
+  function countdownText(iso) {
+    var ms = msUntil(iso);
+    if (ms === Infinity) return "";
+    if (ms <= 0) return "Expired";
+    var total = Math.floor(ms / 1000);
+    var m = Math.floor(total / 60);
+    var s = total % 60;
+    return "Expires in " + m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function relativeTime(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return "";
+    var diff = Date.now() - t;
+    if (diff < 45000) return "just now";
+    if (diff < 3600000) return Math.round(diff / 60000) + " min ago";
+    if (diff < 86400000) return Math.round(diff / 3600000) + " h ago";
+    if (diff < 7 * 86400000) return Math.round(diff / 86400000) + " d ago";
+    var d = new Date(t);
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return "on " + d.getDate() + " " + months[d.getMonth()];
+  }
+
+  function askedBy(a) {
+    var who = (a.created_by && a.created_by.label) || "Assistant";
+    var member = a.input && typeof a.input.member === "string" ? a.input.member : "";
+    var parts = ["Asked by " + who];
+    if (member) parts.push("for " + member);
+    var when = relativeTime(a.created_at);
+    if (when) parts.push(when);
+    return parts.join(" · ");
+  }
+
+  function riskTone(risk) {
+    if (risk === "high") return "chip-danger";
+    if (risk === "confirm") return "chip-warn";
+    if (risk === "low") return "chip-info";
+    return "chip-muted";
+  }
+
+  function outcomeTone(status) {
+    if (status === "executed") return "chip-accent";
+    if (status === "failed") return "chip-danger";
+    if (status === "rejected" || status === "expired") return "chip-danger-muted";
+    return "chip-muted";
+  }
+
+  function outcomeLabel(a) {
+    if (a.status === "executed") return "Done";
+    if (a.status === "rejected") return "Rejected";
+    if (a.status === "expired") return "Expired — ask again";
+    if (a.status === "failed") return "Failed";
+    return "Being decided";
+  }
+
+  // ------------------------------------------------------------------ DOM
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    if (attrs) {
+      for (var key in attrs) {
+        if (!Object.prototype.hasOwnProperty.call(attrs, key)) continue;
+        var value = attrs[key];
+        if (value === undefined || value === null || value === false) continue;
+        if (key === "class") node.className = value;
+        else if (key === "text") node.textContent = value;
+        else if (key === "disabled" || key === "hidden") node[key] = true;
+        else if (key.indexOf("on") === 0) node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, String(value));
+      }
+    }
+    if (children) {
+      var list = Array.isArray(children) ? children : [children];
+      for (var i = 0; i < list.length; i++) {
+        var child = list[i];
+        if (child === undefined || child === null || child === false) continue;
+        node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+      }
+    }
+    return node;
+  }
+
+  function chip(text, tone) { return el("span", { class: "chip " + tone, text: text }); }
+
+  function diffNode(text, op) {
+    var span = el("span", { class: "diff" + (op === "delete" ? " is-delete" : "") });
+    var parts = text.split("→");
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) span.appendChild(el("span", { class: "arrow", text: " → " }));
+      span.appendChild(document.createTextNode(parts[i].trim()));
+    }
+    return span;
+  }
+
+  function changeLine(c) {
+    var line = c && typeof c.line === "string" ? c.line : "";
+    var idx = line.indexOf(": ");
+    var diff = idx >= 0 ? line.slice(idx + 2) : line;
+    var li = el("li", { class: c && c.op === "delete" ? "is-delete" : null });
+    li.appendChild(el("span", { class: "entity", text: String((c && c.entity) || "").replace(/_/g, " ") }));
+    var rest = el("span", { class: "change" });
+    rest.appendChild(el("span", { class: "name", text: (c && c.label) || "" }));
+    rest.appendChild(document.createTextNode(" "));
+    rest.appendChild(diffNode(diff, c && c.op));
+    li.appendChild(rest);
+    return li;
+  }
+
+  function card(a) {
+    var terminal = a.status !== "pending";
+    var expired = !terminal && msUntil(a.expires_at) <= 0;
+    var risk = a.risk || "confirm";
+    var busy = state.busy[a.id] || "";
+    var done = terminal || expired;
+    var art = el("article", {
+      class: "card risk-" + risk + (done ? " is-done" : ""),
+      "data-id": a.id,
+      "aria-busy": busy ? "true" : "false"
+    });
+
+    var head = el("header", { class: "card-head" });
+    var row = el("div", { class: "head-row" });
+    var label = terminal ? outcomeLabel(a)
+      : expired ? "Expired — ask again"
+      : risk === "high" ? "Needs a person's approval" : "Needs your approval";
+    row.appendChild(el("span", { class: "head-label", text: label }));
+    row.appendChild(chip(risk, riskTone(risk)));
+    if (terminal) row.appendChild(chip(a.status, outcomeTone(a.status)));
+    else row.appendChild(el("span", { class: "countdown", "data-expires": a.expires_at, text: countdownText(a.expires_at) }));
+    head.appendChild(row);
+    head.appendChild(el("p", { class: "summary", text: (a.preview && a.preview.summary) || toolTitle(a.tool) }));
+    art.appendChild(head);
+
+    var body = el("div", { class: "card-body" });
+    body.appendChild(el("p", { class: "meta", text: askedBy(a) }));
+    var changes = (a.preview && a.preview.changes) || [];
+    if (changes.length) {
+      body.appendChild(el("p", { class: "label-xs", text: "Changes" }));
+      body.appendChild(el("ul", { class: "changes" }, changes.map(changeLine)));
+    }
+    var warnings = (a.preview && a.preview.warnings) || [];
+    if (warnings.length) {
+      body.appendChild(el("ul", { class: "warnings" }, warnings.map(function (w) {
+        return el("li", null, [el("span", { class: "glyph", text: "⚠ " }), String(w)]);
+      })));
+    }
+    if (a.error && typeof a.error.message === "string") {
+      body.appendChild(el("p", { class: "card-error", text: a.error.message }));
+    }
+    if (state.cardErrors[a.id]) {
+      body.appendChild(el("p", { class: "card-error", role: "alert", text: state.cardErrors[a.id] }));
+    }
+    if (!done) {
+      var consoleOnly = risk === "high";
+      var actions = el("div", { class: "actions" });
+      if (consoleOnly) {
+        actions.appendChild(el("p", { class: "meta console-only", text: "High-risk actions can only be approved in the Housewarden console. You can still reject it here." }));
+      }
+      actions.appendChild(el("button", {
+        type: "button", class: "btn", disabled: !!busy,
+        onclick: function () { decide(a, "reject"); },
+        text: busy === "reject" ? "Rejecting…" : "Reject"
+      }));
+      actions.appendChild(el("button", {
+        type: "button", class: "btn btn-primary", disabled: !!busy || consoleOnly,
+        onclick: function () { decide(a, "approve"); },
+        text: busy === "approve" ? "Approving…" : "Approve"
+      }));
+      body.appendChild(actions);
+    }
+    art.appendChild(body);
+    return art;
+  }
+
+  function render() {
+    var app = document.getElementById("app");
+    var list = document.getElementById("list");
+    var count = document.getElementById("count");
+    var flash = document.getElementById("flash");
+    var foot = document.getElementById("foot");
+    var refreshBtn = document.getElementById("refresh");
+
+    app.setAttribute("aria-busy", state.phase === "loading" || state.refreshing ? "true" : "false");
+    refreshBtn.disabled = state.phase === "loading" || state.phase === "standalone" || state.refreshing;
+    refreshBtn.textContent = state.refreshing ? "Refreshing…" : "Refresh";
+
+    var showCount = state.phase === "ready" || state.phase === "empty";
+    count.hidden = !showCount;
+    if (showCount) {
+      count.textContent = state.pendingCount === 1 ? "1 waiting" : state.pendingCount + " waiting";
+      count.className = "chip " + (state.pendingCount > 0 ? "chip-warn" : "chip-muted");
+    }
+
+    if (state.flash) {
+      flash.hidden = false;
+      flash.className = "flash flash-" + state.flash.tone;
+      flash.textContent = state.flash.text;
+    } else {
+      flash.hidden = true;
+      flash.textContent = "";
+    }
+
+    list.textContent = "";
+    if (state.phase === "loading") {
+      list.appendChild(el("p", { class: "meta", text: "Loading pending approvals…" }));
+    } else if (state.phase === "error") {
+      list.appendChild(el("div", { class: "notice notice-danger", role: "alert" }, [
+        el("p", { class: "title", text: "Couldn't load approvals" }),
+        el("p", { class: "meta", text: state.error })
+      ]));
+    } else if (state.phase === "standalone") {
+      list.appendChild(el("div", { class: "notice" }, [
+        el("p", { class: "title", text: "This is Housewarden's MCP App" }),
+        el("p", { class: "meta", text: "It renders inside an assistant that supports MCP Apps. Open the Housewarden console for the same pending approvals, or add ?demo to this address to see the card with sample data." })
+      ]));
+    } else if (state.phase === "empty") {
+      list.appendChild(el("div", { class: "empty" }, [
+        el("p", { class: "title", text: "Nothing waiting" }),
+        el("p", { class: "meta", text: "When the assistant proposes something that needs a person, it appears here with what would change." })
+      ]));
+    } else {
+      for (var i = 0; i < state.actions.length; i++) list.appendChild(card(state.actions[i]));
+    }
+
+    foot.textContent = (state.phase === "ready" || state.phase === "empty")
+      ? (demo ? "Sample data. Nothing here touches a real household." : "Approve and Reject call confirm_action and reject_action through your assistant. Every decision is written to the audit log.")
+      : "";
+  }
+
+  function tick() {
+    var nodes = document.querySelectorAll("[data-expires]");
+    var rerender = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var iso = nodes[i].getAttribute("data-expires");
+      nodes[i].textContent = countdownText(iso);
+      if (msUntil(iso) <= 0) rerender = true;
+    }
+    if (rerender) render();
+  }
+
+  // ----------------------------------------------------------------- demo
+  // Only reachable from the browser preview (/api/mcp/ui?demo). No host, no data.
+  var demoActions = [];
+
+  function demoAction(id, minutesLeft, tool, input, risk, preview) {
+    return {
+      id: id, tool: tool, input: input, preview: preview, risk: risk, status: "pending",
+      created_by: { kind: "assistant", id: "mcp", label: "Assistant" },
+      created_at: new Date(Date.now() - 2 * 60000).toISOString(),
+      expires_at: new Date(Date.now() + minutesLeft * 60000).toISOString(),
+      decided_by: null, decided_at: null, executed_at: null, result: null, error: null, idempotency_key: null
+    };
+  }
+
+  function startDemo() {
+    demoActions = [
+      demoAction("demo-bill", 8.2, "mark_bill_paid", { bill: "Electricity", member: "Abid" }, "confirm", {
+        summary: "Mark bill 'Electricity' (3,000 PKR, due 30 Sep) as paid",
+        changes: [
+          { entity: "bill", id: "b1", op: "update", label: "Electricity", before: { status: "overdue" }, after: { status: "paid" }, line: "bill 'Electricity' 3,000 PKR due 2026-09-30: status overdue → paid" },
+          { entity: "bill", id: null, op: "create", label: "Electricity", before: null, after: { due_date: "2026-10-30" }, line: "bill 'Electricity' 3,000 PKR due 2026-10-30: new (monthly recurrence)" }
+        ],
+        warnings: ["This bill recurs monthly; the next one will be created for 30 October."]
+      }),
+      demoAction("demo-lock", 9.5, "set_device_state", { device: "Front door", state: { locked: false }, member: "Adlan" }, "high", {
+        summary: "Unlock 'Front door'",
+        changes: [
+          { entity: "device", id: "d1", op: "update", label: "Front door", before: { locked: true }, after: { locked: false }, line: "device 'Front door' (lock): locked true → false" }
+        ],
+        warnings: ["Adlan is a child; unlocking the door needs a person to approve it in the console."]
+      })
+    ];
+    refresh();
+  }
+
+  function demoCallTool(name, args) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        if (name === LIST_TOOL) {
+          var pendingCount = demoActions.filter(function (a) { return a.status === "pending"; }).length;
+          resolve({ content: [{ type: "text", text: pendingCount + " waiting." }], structuredContent: { actions: demoActions.slice(), pending_count: pendingCount } });
+          return;
+        }
+        var target = null;
+        for (var i = 0; i < demoActions.length; i++) if (demoActions[i].id === args.action_id) target = demoActions[i];
+        if (!target) {
+          resolve({ isError: true, content: [{ type: "text", text: "I couldn't find that action." }], structuredContent: { error: { code: "NOT_FOUND", message: "I couldn't find that action." } } });
+          return;
+        }
+        if (name === CONFIRM_TOOL && target.risk === "high") {
+          resolve({ isError: true, content: [{ type: "text", text: "A person must approve this in the console." }], structuredContent: { error: { code: "HIGH_RISK_CONSOLE_ONLY", message: "This action is high risk: a person must approve it in the Housewarden console." } } });
+          return;
+        }
+        var now = new Date().toISOString();
+        target.status = name === CONFIRM_TOOL ? "executed" : "rejected";
+        target.decided_at = now;
+        if (name === CONFIRM_TOOL) target.executed_at = now;
+        resolve({ content: [{ type: "text", text: "Done." }], structuredContent: { status: target.status, tool: target.tool, action_id: target.id, preview: target.preview } });
+      }, 350);
+    });
+  }
+
+  // ----------------------------------------------------------------- boot
+  document.getElementById("refresh").addEventListener("click", function () { refresh(); });
+  setInterval(tick, 1000);
+  render();
+
+  if (!inHost) {
+    if (demo) startDemo();
+    else { state.phase = "standalone"; render(); }
+  } else {
+    request("ui/initialize", { appInfo: APP_INFO, appCapabilities: {}, protocolVersion: PROTOCOL_VERSION }, INIT_TIMEOUT_MS)
+      .then(function (result) {
+        applyHostContext(result && result.hostContext);
+        notify("ui/notifications/initialized", {});
+        startSizeReporting();
+        // If the host attached us to a tool call, its tool-result arrives now
+        // and cancels this; otherwise we fetch the list ourselves.
+        scheduleInitialFetch();
+      }, function (err) {
+        showError("Couldn't connect to the assistant. " + messageOf(err));
+      });
+  }
+})();
+</script>
+</body>
+</html>
