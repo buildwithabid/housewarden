@@ -240,7 +240,9 @@ HOUSEWARDEN_PUBLIC_URL=https://housewarden.example.com npm run start
 - **Storage**: the embedded PGlite database lives in `HOUSEWARDEN_DATA_DIR` and needs one writable directory (back it up like any file). For a managed Postgres set `DATABASE_URL` (with `?sslmode=require` when needed) and `HOUSEWARDEN_DB=pg`; migrations apply on first start either way.
 - **TLS**: terminate HTTPS in front (Caddy, nginx, a platform's edge) and set `HOUSEWARDEN_COOKIE_SECURE=1`. The endpoint must be reachable by the host you connect (for Alexa+, a public HTTPS URL).
 - **Origins**: if the console and the endpoint are called from a browser-based host, add its origin to `HOUSEWARDEN_ALLOWED_ORIGINS`.
-- **VPS install script**: `deploy/` ships a script that installs Node, clones the repo, writes the environment and registers a service on a fresh Debian/Ubuntu VPS.
+- **VPS install script**: `deploy/install.sh` builds the app, applies migrations, registers a `systemd --user` service on `127.0.0.1:3124` (with lingering, so it survives a reboot), and optionally starts a Caddy front for automatic TLS. Two things bite on a fresh VPS:
+  - `HOUSEWARDEN_DATA_DIR` **must be absolute** in the service unit. Next's standalone `server.js` calls `process.chdir(__dirname)`, so a relative path resolves inside `.next/standalone` and the service quietly opens a *different* database from the one `npm run seed` wrote to (friction log F7).
+  - Ports **80 and 443 must be open inbound** at the provider's network firewall, not just on the host. Let's Encrypt validates from outside; if the provider blocks the ports, `caddy` still listens locally and answers on the machine's own IP, while ACME fails with `Timeout during connect (likely firewall problem)` for both `http-01` and `tls-alpn-01`. Open them in the provider's control panel before starting the TLS front.
 
 ## Project layout
 
