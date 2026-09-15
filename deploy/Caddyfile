@@ -1,4 +1,16 @@
+{
+	# Port 80 is filtered upstream on this host, so the HTTP-01 challenge can never
+	# complete. TLS-ALPN-01 needs only 443, which is open; pin the production CA so a
+	# previous staging fallback cannot leave an untrusted certificate in place.
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
 169-58-213-182.sslip.io {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:3124 {
 		flush_interval -1
