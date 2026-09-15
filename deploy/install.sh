@@ -27,19 +27,38 @@ if [ ! -x "$BIN/caddy" ]; then
   curl -sL "https://github.com/caddyserver/caddy/releases/download/v${V}/caddy_${V}_linux_amd64.tar.gz" | tar -xz -C "$BIN" caddy
 fi
 "$BIN/caddy" version
-# binding :443 as a normal user needs this capability once (root):
-if ! getcap "$BIN/caddy" | grep -q cap_net_bind_service; then
-  echo ">> run:  sudo setcap 'cap_net_bind_service=+ep' $BIN/caddy"
-  sudo setcap 'cap_net_bind_service=+ep' "$BIN/caddy"
+# Binding :80/:443 as a normal user needs this capability, granted once by root.
+# getcap/setcap live in /sbin, which is usually not on a non-root PATH.
+GETCAP=$(command -v getcap || echo /sbin/getcap)
+CAN_BIND_LOW_PORTS=no
+if [ -x "$GETCAP" ] && "$GETCAP" "$BIN/caddy" 2>/dev/null | grep -q cap_net_bind_service; then
+  CAN_BIND_LOW_PORTS=yes
 fi
-# open the port if ufw is active (root)
-if sudo ufw status 2>/dev/null | grep -q "Status: active"; then sudo ufw allow 443/tcp; sudo ufw allow 80/tcp; fi
 
-# --- 3. services ------------------------------------------------------------------
-cp deploy/housewarden.service deploy/caddy.service ~/.config/systemd/user/
+# --- 3. app service (no root required) --------------------------------------------
+cp deploy/housewarden.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now housewarden.service caddy.service
+systemctl --user enable --now housewarden.service
 loginctl enable-linger "$USER" >/dev/null 2>&1 || true
-sleep 3
-systemctl --user --no-pager status housewarden.service caddy.service | grep -E "Active:|housewarden|caddy" | head -6
-echo "MCP endpoint: https://$(grep -m1 -oE '^[a-z0-9.-]+' deploy/Caddyfile)/api/mcp"
+sleep 4
+systemctl --user --no-pager --lines=0 status housewarden.service | grep -E "Active:" || true
+curl -s -o /dev/null -w "app on 127.0.0.1:3124 -> HTTP %{http_code}\n" -m 10 http://127.0.0.1:3124/login || true
+
+# --- 4. HTTPS front (needs the capability above) -----------------------------------
+if [ "$CAN_BIND_LOW_PORTS" = yes ]; then
+  cp deploy/caddy.service ~/.config/systemd/user/
+  systemctl --user daemon-reload
+  systemctl --user enable --now caddy.service
+  sleep 5
+  systemctl --user --no-pager --lines=0 status caddy.service | grep -E "Active:" || true
+  echo "MCP endpoint: https://$(grep -m1 -oE '^[a-z0-9.-]+' deploy/Caddyfile)/api/mcp"
+else
+  cat <<EOF
+
+The app is running on 127.0.0.1:3124. To put HTTPS in front of it, run ONE line as root:
+
+    sudo setcap 'cap_net_bind_service=+ep' $BIN/caddy
+
+then re-run this script. (No firewall found on this host, so no port needs opening.)
+EOF
+fi

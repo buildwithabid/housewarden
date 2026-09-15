@@ -14,7 +14,7 @@ Amazon Developer Hackathon 2026 · **Track: Alexa+** (self-hosted MCP server, sp
 | Try it | `git clone https://github.com/buildwithabid/housewarden && cd housewarden && npm install && npm run dev` — see "Testing instructions" below |
 | Built with | next.js, react, typescript, node.js, model-context-protocol, mcp-handler, pglite, postgresql, zod, tailwindcss, vitest, playwright |
 | Team | Abid Ali (GitHub `buildwithabid`) |
-| Friction log | Included — six entries in `docs/FRICTION_LOG.md`, summarised at the end of this document |
+| Friction log | Included — seven entries in `docs/FRICTION_LOG.md`, summarised at the end of this document |
 
 ---
 

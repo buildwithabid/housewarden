@@ -78,6 +78,18 @@ Severity scale: **Blocker** (no way forward), **High** (lost hours or forced a d
 - **Workaround:** keep everything the factory touches as module-level constants (schemas, catalogue, the cached `ui/pending.html`) so the per-request cost is only the registration itself; nothing is computed inside `registerTools`.
 - **Suggestion:** let `createMcpHandler` accept a prebuilt `McpServer` (or a memoised factory keyed by nothing) for stateless deployments, or have the SDK cache the JSON Schema per zod object in a `WeakMap` so re-registration is cheap.
 
+## F7 · Next 16 `output: standalone` — `server.js` chdirs, so a relative data directory silently becomes a second, empty database
+
+*2026-09-15 · deployment · Next 16.3.5, @electric-sql/pglite, systemd --user*
+
+- **Task attempted:** run the built app as a systemd service on a VPS (`node .next/standalone/server.js`, `WorkingDirectory=` the repo root) and have it serve the same embedded-Postgres database that `npm run migrate` and `npm run seed` had just written.
+- **Steps:** `next build` with `output: "standalone"`; a unit with `WorkingDirectory=/home/abidali/housewarden` and `HOUSEWARDEN_DATA_DIR` left at its default of `.data/pglite`; `npm run seed`; then call `get_household_summary` through the MCP endpoint.
+- **Expected:** the service reads `<repo>/.data/pglite`, the directory the seed just populated, because that is the unit's working directory.
+- **Actual:** every tool answered `HOUSEHOLD_EMPTY`. The standalone entry point calls `process.chdir(__dirname)` before loading the app, so the process's cwd is `.next/standalone`, and a relative data directory resolved to `.next/standalone/.data/pglite` — a *second* database, which the migration bootstrap then created and migrated, so nothing errored. Two valid databases, no warning, and the seeded one was never opened.
+- **Severity:** High — silent data divergence in production. Nothing fails; the app simply serves an empty world, and the obvious next move (re-run the seed) writes to the wrong one again.
+- **Workaround:** give `HOUSEWARDEN_DATA_DIR` an absolute path in the unit (now the default in `deploy/housewarden.service`, with the reason in a comment), and delete the stray `.next/standalone/.data`.
+- **Suggestion:** document the `chdir` on the `output: "standalone"` page — it is the single behavioural difference that breaks otherwise-correct relative paths — or set `process.env.NEXT_STANDALONE_ORIGINAL_CWD` before chdir so applications can resolve user-configured paths against the directory the operator actually launched from.
+
 ---
 
 ## Things that were expected to hurt and did not

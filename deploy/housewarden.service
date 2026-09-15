@@ -6,6 +6,11 @@ After=network-online.target
 WorkingDirectory=/home/abidali/housewarden
 EnvironmentFile=/home/abidali/housewarden/.env.local
 Environment=NODE_ENV=production PORT=3124 HOSTNAME=127.0.0.1 HOUSEWARDEN_DB=pglite
+# Next's standalone server.js calls process.chdir(__dirname), so a relative
+# HOUSEWARDEN_DATA_DIR would resolve inside .next/standalone and the service would
+# open a DIFFERENT database from the one `npm run seed`/`npm run migrate` write to.
+# Always give the data directory as an absolute path here.
+Environment=HOUSEWARDEN_DATA_DIR=/home/abidali/housewarden/.data/pglite
 ExecStart=/usr/bin/env node .next/standalone/server.js
 Restart=always
 RestartSec=5
