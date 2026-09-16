@@ -10,7 +10,7 @@ A home assistant is about to be handed real actions: pay this bill, unlock the d
 
 ## Demo video
 
-**Watch:** `TODO_VIDEO_URL` (YouTube, under three minutes, English captions burned in) — the same file is in the repo as [`demo/housewarden-demo.mp4`](demo/housewarden-demo.mp4). Shot list and every caption: [`demo/script.md`](demo/script.md). It was recorded with Playwright driving the real console and a real MCP client (`demo/record.mjs`); nothing in it is mocked.
+**Watch:** https://youtu.be/3zZOKYgpXVw (YouTube, under three minutes, English captions burned in) — the same file is in the repo as [`demo/housewarden-demo.mp4`](demo/housewarden-demo.mp4). Shot list and every caption: [`demo/script.md`](demo/script.md). It was recorded with Playwright driving the real console and a real MCP client (`demo/record.mjs`); nothing in it is mocked.
 
 | Dashboard | Pending approval | Audit chain |
 |---|---|---|

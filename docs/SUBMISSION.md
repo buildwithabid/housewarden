@@ -1,6 +1,6 @@
 # Devpost submission — Housewarden
 
-Amazon Developer Hackathon 2026 · **Track: Alexa+** (self-hosted MCP server, spec 2025-11-25+, Streamable HTTP) · **Mini challenge: Open Source** (MIT). Every field below is written so it can be pasted into the Devpost form. The only placeholder is the video URL, marked **`TODO_VIDEO_URL`** — the owner fills it in after uploading `demo/housewarden-demo.mp4` (see "How to submit" at the end).
+Amazon Developer Hackathon 2026 · **Track: Alexa+** (self-hosted MCP server, spec 2025-11-25+, Streamable HTTP) · **Mini challenge: Open Source** (MIT). Every field below is written so it can be pasted into the Devpost form. The demo video is published and public at **https://youtu.be/3zZOKYgpXVw**; nothing in this document is a placeholder any more.
 
 | Devpost field | Value |
 |---|---|
@@ -10,7 +10,7 @@ Amazon Developer Hackathon 2026 · **Track: Alexa+** (self-hosted MCP server, sp
 | Mini challenge | Open Source |
 | Repository (public) | https://github.com/buildwithabid/housewarden |
 | License | MIT (`LICENSE` in the repo root) |
-| Demo video (≤ 3 min, English, public) | **`TODO_VIDEO_URL`** — upload `demo/housewarden-demo.mp4` (2:27, 1280×720, burned-in English captions, silent track) to YouTube as *Public* or *Unlisted*, then paste the link here and in the Devpost "Video link" field |
+| Demo video (≤ 3 min, English, public) | **https://youtu.be/3zZOKYgpXVw** — `demo/housewarden-demo.mp4` (2:27, 1280×720, burned-in English captions, silent track), published Public on YouTube. Paste this into the Devpost "Video link" field |
 | Try it | `git clone https://github.com/buildwithabid/housewarden && cd housewarden && npm install && npm run dev` — see "Testing instructions" below |
 | Built with | next.js, react, typescript, node.js, model-context-protocol, mcp-handler, pglite, postgresql, zod, tailwindcss, vitest, playwright |
 | Team | Abid Ali (GitHub `buildwithabid`) |
@@ -147,7 +147,7 @@ Six real entries, in the hackathon's required format (task, steps, expected vs a
 ## How to submit (owner checklist)
 
 1. **Push and check the repo.** `git push origin main` from this checkout; confirm https://github.com/buildwithabid/housewarden is *public*, shows the MIT `LICENSE`, and that `app/api/mcp/route.ts` is visible (the "calls the required technology in code" rule).
-2. **Upload the video.** Upload `demo/housewarden-demo.mp4` to YouTube (or Vimeo) as **Public** (Unlisted is accepted by Devpost but Public is safer for the "public" rule), title "Housewarden — every household action previewed, confirmed, audited (Alexa+ MCP server)", language English. Copy the URL and replace every `TODO_VIDEO_URL` in this file and in `README.md`; commit and push.
+2. ~~**Upload the video.**~~ **Done, 16 September 2026.** `demo/housewarden-demo.mp4` is published Public on YouTube at **https://youtu.be/3zZOKYgpXVw**, titled "Housewarden - a household MCP server where every write is previewed, confirmed and audited", language English, declared not made for kids. The URL is already filled in throughout this file and in `README.md`.
 3. **Devpost account.** Sign in at devpost.com (or register), complete the profile name that should appear on the entry.
 4. **Join the hackathon.** Open the Amazon Developer Hackathon 2026 page on Devpost, press **Join hackathon**, accept the rules.
 5. **Start the submission.** "Enter a submission" → **Project name**: Housewarden · **Tagline**: `Every household action: previewed, confirmed, audited.` (54 characters).
