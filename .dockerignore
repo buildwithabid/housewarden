@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.data
+.env
+.env.local
+demo/*.mp4
+docs/screens
+npm-debug.log*
+*.tgz
+coverage
