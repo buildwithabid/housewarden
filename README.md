@@ -166,6 +166,14 @@ Accept: application/json, text/event-stream
 }
 ```
 
+**Hosts that must launch the server themselves** (and directories that build and inspect it, such as Glama) can use the bundled stdio entry point. It starts the production server on a loopback port, waits for the endpoint, and bridges stdio to it with `mcp-remote`; the bearer token is generated per run when `HOUSEWARDEN_TOKEN` is not set, and nothing but JSON-RPC is written to stdout:
+
+```bash
+npm ci && npm run build
+npm install -g mcp-remote        # or set HOUSEWARDEN_STDIO_NPX=1 to fetch it with npx
+npm run stdio                    # = node scripts/stdio.mjs
+```
+
 **From a terminal**, to see the raw protocol:
 
 ```bash

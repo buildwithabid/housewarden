@@ -11,6 +11,7 @@
     "dev": "tsx scripts/dev.ts",
     "build": "next build",
     "start": "next start",
+    "stdio": "node scripts/stdio.mjs",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
