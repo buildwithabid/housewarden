@@ -166,12 +166,11 @@ Accept: application/json, text/event-stream
 }
 ```
 
-**Hosts that must launch the server themselves** (and directories that build and inspect it, such as Glama) can use the bundled stdio entry point. It starts the production server on a loopback port, waits for the endpoint, and bridges stdio to it with `mcp-remote`; the bearer token is generated per run when `HOUSEWARDEN_TOKEN` is not set, and nothing but JSON-RPC is written to stdout:
+**Hosts that must launch the server themselves** (Claude Desktop without a bridge, `mcp-proxy`, and directories that build and inspect the server, such as Glama) can use the native stdio entry point. It serves the same 31 tools, guard and audit chain straight over stdio - no HTTP hop and no bearer token, because the client is the process that started it - and writes nothing but JSON-RPC to stdout:
 
 ```bash
-npm ci && npm run build
-npm install -g mcp-remote        # or set HOUSEWARDEN_STDIO_NPX=1 to fetch it with npx
-npm run stdio                    # = node scripts/stdio.mjs
+npm ci
+npm run stdio                    # = tsx scripts/stdio.ts
 ```
 
 **From a terminal**, to see the raw protocol:
